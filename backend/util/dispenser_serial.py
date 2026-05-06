@@ -1,70 +1,181 @@
 import glob
+import os
 import threading
 import time
 
 try:
     import serial
-except Exception:
+except Exception as exc:
     serial = None
+    _SERIAL_IMPORT_ERROR = exc
+else:
+    _SERIAL_IMPORT_ERROR = None
 
 
-BAUD_RATE = 9600
-SERIAL_TIMEOUT = 20
+BAUD_RATE = int(os.getenv("ARDUINO_BAUD", "9600"))
+SERIAL_TIMEOUT = 30
+ARDUINO_BOOT_WAIT_SECONDS = 3.0
 
-_SERIAL_LOCK = threading.Lock()
+HOME_TIMEOUT_SECONDS = 130
+DISPENSE_TIMEOUT_SECONDS = 75
+RETURN_HOME_TIMEOUT_SECONDS = 90
+DISPOSE_TIMEOUT_SECONDS = 45
+CHANGE_TIMEOUT_SECONDS = 90
+
+_SERIAL_LOCK = threading.RLock()
 _SERIAL_CONN = None
 _SERIAL_PORT = None
 
+_KITS_HOMED_EVENT = threading.Event()
+_HOMING_IN_PROGRESS = False
+_HOMING_LOCK = threading.RLock()
 
-def map_product_to_command(product_id="", product_name=""):
-    from config_manager import config
 
-    pid = str(product_id).strip()
-    pname = str(product_name).strip().lower()
+FINAL_PREFIXES = (
+    "DISPENSED:",
+    "CHANGE_DISPENSED:",
+    "DISPOSED:",
+    "KIT_HOME_DONE:",
+    "KIT_RETURNED_HOME:",
+    "KIT_STATUS:",
+    "TRASH_STATUS:",
+    "BILL_STATUS:",
+)
 
-    # 1) Preferred: use synced booth config
-    product = config.get_product_by_id(pid) if pid else None
-    if product:
-        slot = str(product.get("dispense_slot", "")).strip().upper()
+FAILURE_PREFIXES = (
+    "ERROR:",
+    "ERR:",
+    "DISPENSE_FAILED:",
+    "DISPOSE_FAILED:",
+    "KIT_HOME_FAILED:",
+    "CHANGE_FAILED:",
+)
 
-        if slot == "KIT1":
-            return "DISPENSE:KIT1\n", "KIT1"
-        if slot == "KIT2":
-            return "DISPENSE:KIT2\n", "KIT2"
-        if slot == "KIT3":
-            return "DISPENSE:KIT3\n", "KIT3"
+FINAL_LINES = {
+    "PONG",
+    "READY",
+    "OK",
+    "BUSY",
+    "BILL_STATUS:ON",
+    "BILL_STATUS:OFF",
+    "SERVOS_RESET",
+    "KIT_SLOTS_RESET",
+    "STOP_ALL",
+}
 
-    # 2) Backward-compatible fallback for older products
-    pid_lower = pid.lower()
-    if pid_lower in ("1", "kit1", "oral", "oralkit", "hiv123", "hiv"):
-        return "DISPENSE:KIT1\n", "KIT1"
 
-    if pid_lower in ("2", "kit2", "blood", "bloodkit", "dengue123", "dengue"):
-        return "DISPENSE:KIT2\n", "KIT2"
+# =====================================================
+# BASIC HELPERS
+# =====================================================
 
-    if pid_lower in ("3", "kit3", "urine", "urinekit"):
-        return "DISPENSE:KIT3\n", "KIT3"
+def _clean(value):
+    return str(value or "").strip()
 
-    if "oral" in pname or "hiv" in pname:
-        return "DISPENSE:KIT1\n", "KIT1"
 
-    if "blood" in pname or "dengue" in pname:
-        return "DISPENSE:KIT2\n", "KIT2"
+def _upper(value):
+    return _clean(value).upper()
 
-    if "urine" in pname:
-        return "DISPENSE:KIT3\n", "KIT3"
 
-    return None, None
+def _normalize_markers(markers):
+    if not markers:
+        return []
+
+    return [_upper(item) for item in markers if _clean(item)]
+
+
+def _is_failure_line(line):
+    upper = _upper(line)
+
+    if upper == "BUSY":
+        return True
+
+    return any(upper.startswith(prefix) for prefix in FAILURE_PREFIXES)
+
+
+def _is_expected_line(line, wait_for_prefixes=None, wait_for_lines=None):
+    upper = _upper(line)
+    prefixes = _normalize_markers(wait_for_prefixes)
+    lines = set(_normalize_markers(wait_for_lines))
+
+    if lines and upper in lines:
+        return True
+
+    for prefix in prefixes:
+        if upper.startswith(prefix):
+            return True
+
+    return False
+
+
+def _is_generic_final_line(line):
+    upper = _upper(line)
+
+    if upper in FINAL_LINES:
+        return True
+
+    if _is_failure_line(upper):
+        return True
+
+    return any(upper.startswith(prefix) for prefix in FINAL_PREFIXES)
+
+
+# =====================================================
+# SERIAL PORT SELECTION
+# =====================================================
+
+def _candidate_ports():
+    """
+    Important:
+    Do NOT auto-search /dev/serial/by-id/* here.
+
+    Your thermal printer appeared as a CP2102 /dev/serial/by-id device,
+    and Arduino commands were accidentally sent to the printer.
+
+    Best:
+      ARDUINO_PORT=/dev/ttyUSB0
+
+    or:
+      ARDUINO_PORT=/dev/ttyACM0
+    """
+    explicit = os.getenv("ARDUINO_PORT", "").strip()
+
+    if explicit:
+        return [explicit]
+
+    ports = []
+
+    preferred = [
+        "/dev/ttyUSB0",
+        "/dev/ttyACM10",
+        "/dev/ttyACM1",
+        "/dev/ttyACM0",
+    ]
+
+    for port in preferred:
+        if os.path.exists(port):
+            ports.append(port)
+
+    ports.extend(sorted(glob.glob("/dev/ttyUSB*")))
+    ports.extend(sorted(glob.glob("/dev/ttyACM*")))
+
+    unique = []
+    seen = set()
+
+    for port in ports:
+        if port and port not in seen:
+            unique.append(port)
+            seen.add(port)
+
+    return unique
 
 
 def _find_arduino_port():
-    candidates = []
-    candidates.extend(sorted(glob.glob("/dev/ttyACM*")))
-    candidates.extend(sorted(glob.glob("/dev/ttyUSB*")))
+    candidates = _candidate_ports()
 
     if not candidates:
         raise RuntimeError(
-            "No Arduino serial device found. Connect the Uno by USB and check /dev/ttyACM0 or /dev/ttyUSB0."
+            "No Arduino serial device found. Set ARDUINO_PORT=/dev/ttyUSB0 "
+            "or ARDUINO_PORT=/dev/ttyACM0 in .env.local."
         )
 
     return candidates[0]
@@ -92,7 +203,10 @@ def _ensure_serial_locked(force_reopen=False):
     global _SERIAL_CONN, _SERIAL_PORT
 
     if serial is None:
-        raise RuntimeError("pyserial is not installed. Install it with: pip install pyserial")
+        raise RuntimeError(
+            "pyserial is not installed or failed to import. "
+            f"Install it with: pip install pyserial. Error={_SERIAL_IMPORT_ERROR}"
+        )
 
     port = _find_arduino_port()
 
@@ -107,19 +221,16 @@ def _ensure_serial_locked(force_reopen=False):
     ser = serial.Serial()
     ser.port = port
     ser.baudrate = BAUD_RATE
-    ser.timeout = 1
-    ser.write_timeout = 1
+    ser.timeout = 0.15
+    ser.write_timeout = 2
     ser.rtscts = False
     ser.dsrdtr = False
     ser.open()
 
-    try:
-        ser.setDTR(False)
-    except Exception:
-        pass
+    time.sleep(ARDUINO_BOOT_WAIT_SECONDS)
 
-    time.sleep(3)
-
+    # Only clear immediately after opening the port.
+    # Do NOT clear before every command, because that can chop delayed replies.
     try:
         ser.reset_input_buffer()
         ser.reset_output_buffer()
@@ -133,43 +244,105 @@ def _ensure_serial_locked(force_reopen=False):
     return _SERIAL_CONN
 
 
-def _read_replies(ser, command, timeout):
-    start = time.time()
-    replies = []
+# =====================================================
+# SERIAL READ / WRITE
+# =====================================================
 
-    while time.time() - start < timeout:
+def _drain_stale_serial_lines(ser, drain_seconds=0.30):
+    """
+    Drain boot leftovers such as READY before sending a command.
+
+    This prevents:
+      BILL_OFF -> reads stale READY -> fails
+      next command -> reads chopped BILL_STATUS:OFF
+    """
+    drained = []
+    deadline = time.time() + float(drain_seconds)
+
+    while time.time() < deadline:
         raw = ser.readline()
+
         if not raw:
             continue
 
         line = raw.decode("utf-8", errors="ignore").strip()
+
+        if line:
+            drained.append(line)
+
+    for line in drained:
+        print(f"[SERIAL] Drained stale reply: {line}", flush=True)
+
+    return drained
+
+
+def _read_replies(ser, timeout, wait_for_prefixes=None, wait_for_lines=None):
+    """
+    Read Arduino replies.
+
+    If caller waits for a specific line/prefix, stale READY and unrelated lines
+    must not finish the read.
+    """
+    start = time.time()
+    replies = []
+
+    wait_for_prefixes = _normalize_markers(wait_for_prefixes)
+    wait_for_lines = set(_normalize_markers(wait_for_lines))
+    has_specific_target = bool(wait_for_prefixes or wait_for_lines)
+
+    while time.time() - start < timeout:
+        raw = ser.readline()
+
+        if not raw:
+            continue
+
+        line = raw.decode("utf-8", errors="ignore").strip()
+
         if not line:
             continue
 
         replies.append(line)
         print(f"[SERIAL] Reply: {line}", flush=True)
 
-        upper = line.upper()
+        upper = _upper(line)
 
-        if upper == "PONG":
-            break
+        if has_specific_target:
+            # OK is only acknowledgement for long commands.
+            if upper == "OK":
+                continue
 
-        if upper in ("BILL_STATUS:ON", "BILL_STATUS:OFF"):
-            break
+            # READY can be a stale boot line. Ignore unless caller specifically wants READY.
+            if upper == "READY" and "READY" not in wait_for_lines:
+                continue
 
-        if upper.startswith("DISPENSED:"):
-            break
+            if _is_expected_line(
+                upper,
+                wait_for_prefixes=wait_for_prefixes,
+                wait_for_lines=wait_for_lines,
+            ):
+                break
 
-        if upper.startswith("CHANGE_DISPENSED:"):
-            break
+            if _is_failure_line(upper):
+                break
 
-        if upper.startswith("ERROR:"):
+            # Ignore unrelated lines while waiting for target.
+            continue
+
+        if _is_generic_final_line(upper):
             break
 
     return replies
 
 
-def _send_command_and_collect(command, timeout=SERIAL_TIMEOUT):
+def _send_command_and_collect(
+    command,
+    timeout=SERIAL_TIMEOUT,
+    wait_for_prefixes=None,
+    wait_for_lines=None,
+):
+    if not command.endswith("\n"):
+        command += "\n"
+
     with _SERIAL_LOCK:
         last_error = None
 
@@ -177,116 +350,525 @@ def _send_command_and_collect(command, timeout=SERIAL_TIMEOUT):
             try:
                 ser = _ensure_serial_locked(force_reopen=(attempt == 1))
 
-                try:
-                    ser.reset_input_buffer()
-                except Exception:
-                    pass
+                # Do not reset_input_buffer here.
+                # It can cut BILL_STATUS:OFF into L_STATUS:OFF.
+                _drain_stale_serial_lines(ser, drain_seconds=0.25)
 
                 ser.write(command.encode("utf-8"))
                 ser.flush()
 
                 print(f"[SERIAL] Sent: {command.strip()}", flush=True)
 
-                replies = _read_replies(ser, command, timeout)
+                replies = _read_replies(
+                    ser,
+                    timeout=timeout,
+                    wait_for_prefixes=wait_for_prefixes,
+                    wait_for_lines=wait_for_lines,
+                )
+
                 return replies
 
             except Exception as e:
                 last_error = e
-                print(f"[SERIAL] command attempt {attempt + 1} failed: {e}", flush=True)
+                print(
+                    f"[SERIAL] command attempt {attempt + 1} failed: {e}",
+                    flush=True,
+                )
                 _close_serial_locked()
                 time.sleep(0.5)
 
-        print(f"[SERIAL] final failure sending {command.strip()}: {last_error}", flush=True)
+        print(
+            f"[SERIAL] final failure sending {command.strip()}: {last_error}",
+            flush=True,
+        )
+
         return []
 
 
+def _error_result(message, replies=None, **extra):
+    payload = {
+        "success": False,
+        "message": str(message or "Operation failed."),
+        "replies": replies or [],
+    }
+    payload.update(extra)
+    return payload
+
+
+def _success_result(message, replies=None, **extra):
+    payload = {
+        "success": True,
+        "message": str(message or "OK"),
+        "replies": replies or [],
+    }
+    payload.update(extra)
+    return payload
+
+
+# =====================================================
+# ERROR TRANSLATION
+# =====================================================
+
+def _translate_arduino_error(message):
+    raw = _clean(message)
+    upper = raw.upper()
+
+    if upper == "BUSY":
+        return "Arduino is busy. Please wait for the current hardware movement to finish."
+
+    if "COOLDOWN" in upper:
+        return "The dispenser is cooling down. Please try again after a few seconds."
+
+    if "KIT_EMPTY" in upper:
+        if "KIT1" in upper:
+            return "The HIV kit lane appears to be empty. Please refill KIT1 and reset/home the lane."
+        if "KIT2" in upper:
+            return "The Dengue kit lane appears to be empty. Please refill KIT2 and reset/home the lane."
+        return "The selected kit lane appears to be empty. Please refill and reset/home the lane."
+
+    if "UNKNOWN_POSITION" in upper or "NOT_HOMED" in upper:
+        return "The actuator position is not trusted. Home the kit actuators before dispensing."
+
+    if "INVALID_TRAVEL" in upper:
+        return "The actuator is already past the next target slot. Home the lane and reset kit slots."
+
+    if "NOT_WIRED" in upper:
+        return "This kit lane is not wired in the current machine."
+
+    if "DISPENSE_STOPPED" in upper:
+        return "Kit dispensing was stopped before completion."
+
+    if "COIN_DISPENSE_FAILED" in upper:
+        return "Coin dispensing did not complete. Please check the coin servo mechanism and coin path."
+
+    if "INVALID_CHANGE_PLAN" in upper:
+        return "The change dispense plan sent to Arduino was invalid."
+
+    if "DISPOSE" in upper:
+        return "Trash disposal did not complete. Check the ULN2003 stepper mechanism."
+
+    return raw or "Arduino reported an error."
+
+
+def _extract_dispensed_kit(line):
+    parts = _clean(line).split(":")
+
+    if len(parts) >= 2:
+        return parts[1].strip().upper()
+
+    return ""
+
+
+# =====================================================
+# PRODUCT MAPPING
+# =====================================================
+
+def map_product_to_command(product_id="", product_name=""):
+    from config_manager import config
+
+    pid = _clean(product_id)
+    pname = _clean(product_name).lower()
+
+    product = config.get_product_by_id(pid) if pid else None
+
+    if product:
+        slot = _clean(product.get("dispense_slot", "")).upper()
+
+        if slot == "KIT1":
+            return "DISPENSE:KIT1\n", "KIT1"
+
+        if slot == "KIT2":
+            return "DISPENSE:KIT2\n", "KIT2"
+
+        if slot == "KIT3":
+            return "DISPENSE:KIT3\n", "KIT3"
+
+    pid_lower = pid.lower()
+
+    if pid_lower in ("1", "kit1", "oral", "oralkit", "hiv123", "hiv"):
+        return "DISPENSE:KIT1\n", "KIT1"
+
+    if pid_lower in ("2", "kit2", "blood", "bloodkit", "dengue123", "dengue"):
+        return "DISPENSE:KIT2\n", "KIT2"
+
+    if pid_lower in ("3", "kit3", "urine", "urinekit"):
+        return "DISPENSE:KIT3\n", "KIT3"
+
+    if "oral" in pname or "hiv" in pname:
+        return "DISPENSE:KIT1\n", "KIT1"
+
+    if "blood" in pname or "dengue" in pname:
+        return "DISPENSE:KIT2\n", "KIT2"
+
+    if "urine" in pname:
+        return "DISPENSE:KIT3\n", "KIT3"
+
+    return None, None
+
+
+# =====================================================
+# BASIC COMMANDS
+# =====================================================
+
 def ping_arduino():
-    replies = _send_command_and_collect("PING\n", timeout=3)
+    replies = _send_command_and_collect(
+        "PING\n",
+        timeout=5,
+        wait_for_lines={"PONG"},
+    )
 
     for line in replies:
-        if line.upper() == "PONG":
-            return {
-                "success": True,
-                "message": "Arduino is reachable.",
-                "replies": replies,
-            }
+        if _upper(line) == "PONG":
+            return _success_result("Arduino is reachable.", replies)
 
-    return {
-        "success": False,
-        "message": "No PONG reply received.",
-        "replies": replies,
-    }
+    replies = _send_command_and_collect(
+        "READY\n",
+        timeout=5,
+        wait_for_lines={"READY"},
+    )
+
+    for line in replies:
+        if _upper(line) == "READY":
+            return _success_result("Arduino is reachable.", replies)
+
+    return _error_result("No PONG/READY reply received.", replies)
+
+
+def send_raw_command(command, timeout=5):
+    replies = _send_command_and_collect(command, timeout=timeout)
+
+    if not replies:
+        return _error_result("No reply from Arduino.", [])
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _success_result(replies[-1], replies)
 
 
 def send_bill_on_command():
-    replies = _send_command_and_collect("BILL_ON\n", timeout=3)
+    replies = _send_command_and_collect(
+        "BILL_ON\n",
+        timeout=8,
+        wait_for_lines={"BILL_STATUS:ON"},
+    )
 
     for line in replies:
-        upper = line.upper()
-
-        if upper == "BUSY":
-            return {
-                "success": False,
-                "message": "Arduino is busy.",
-                "replies": replies,
-            }
-
-        if upper.startswith("ERROR:"):
-            return {
-                "success": False,
-                "message": line,
-                "replies": replies,
-            }
+        upper = _upper(line)
 
         if upper == "BILL_STATUS:ON":
-            return {
-                "success": True,
-                "message": line,
-                "replies": replies,
-            }
+            return _success_result(line, replies)
 
-    return {
-        "success": False,
-        "message": "No BILL_STATUS:ON confirmation received.",
-        "replies": replies,
-    }
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result("No BILL_STATUS:ON confirmation received.", replies)
 
 
 def send_bill_off_command():
-    replies = _send_command_and_collect("BILL_OFF\n", timeout=3)
+    replies = _send_command_and_collect(
+        "BILL_OFF\n",
+        timeout=8,
+        wait_for_lines={"BILL_STATUS:OFF"},
+    )
 
     for line in replies:
-        upper = line.upper()
-
-        if upper == "BUSY":
-            return {
-                "success": False,
-                "message": "Arduino is busy.",
-                "replies": replies,
-            }
-
-        if upper.startswith("ERROR:"):
-            return {
-                "success": False,
-                "message": line,
-                "replies": replies,
-            }
+        upper = _upper(line)
 
         if upper == "BILL_STATUS:OFF":
+            return _success_result(line, replies)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result("No BILL_STATUS:OFF confirmation received.", replies)
+
+
+def get_bill_status(timeout=5):
+    replies = _send_command_and_collect(
+        "GET_BILL_STATUS\n",
+        timeout=timeout,
+        wait_for_prefixes=("BILL_STATUS:",),
+    )
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper.startswith("BILL_STATUS:"):
+            return _success_result(line, replies, status_line=line)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result("No BILL_STATUS response received.", replies)
+
+
+def reset_servos_to_rest(timeout=8):
+    replies = _send_command_and_collect(
+        "RESET_SERVOS\n",
+        timeout=timeout,
+        wait_for_lines={"SERVOS_RESET"},
+    )
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper == "SERVOS_RESET":
+            return _success_result(line, replies)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result("No SERVOS_RESET confirmation received.", replies)
+
+
+# =====================================================
+# HOMING / STATUS
+# =====================================================
+
+def home_kit_actuators(timeout=HOME_TIMEOUT_SECONDS):
+    global _HOMING_IN_PROGRESS
+
+    with _HOMING_LOCK:
+        _HOMING_IN_PROGRESS = True
+
+    try:
+        _KITS_HOMED_EVENT.clear()
+
+        replies = _send_command_and_collect(
+            "HOME_KITS\n",
+            timeout=timeout,
+            wait_for_prefixes=("KIT_HOME_DONE:",),
+        )
+
+        got_ok = False
+        final_line = None
+        error_line = None
+        busy = False
+
+        for line in replies:
+            upper = _upper(line)
+
+            if upper == "OK":
+                got_ok = True
+            elif upper == "BUSY":
+                busy = True
+            elif upper.startswith("KIT_HOME_DONE:"):
+                final_line = line
+            elif _is_failure_line(upper):
+                error_line = line
+
+        if busy:
+            return _error_result(_translate_arduino_error("BUSY"), replies)
+
+        if error_line:
+            return _error_result(_translate_arduino_error(error_line), replies)
+
+        if final_line:
+            _KITS_HOMED_EVENT.set()
+            return _success_result(final_line, replies)
+
+        if got_ok:
+            return _error_result(
+                "Arduino accepted HOME_KITS, but no KIT_HOME_DONE confirmation was received.",
+                replies,
+            )
+
+        return _error_result("No valid HOME_KITS response received from Arduino.", replies)
+
+    finally:
+        with _HOMING_LOCK:
+            _HOMING_IN_PROGRESS = False
+
+
+def start_background_home_kits():
+    global _HOMING_IN_PROGRESS
+
+    with _HOMING_LOCK:
+        if _HOMING_IN_PROGRESS:
             return {
                 "success": True,
-                "message": line,
-                "replies": replies,
+                "message": "HOME_KITS already running",
+                "background": True,
             }
 
+        if _KITS_HOMED_EVENT.is_set():
+            return {
+                "success": True,
+                "message": "Kits already homed",
+                "background": True,
+            }
+
+        _HOMING_IN_PROGRESS = True
+
+    def _worker():
+        global _HOMING_IN_PROGRESS
+
+        try:
+            print("[SERIAL] Background HOME_KITS started", flush=True)
+            result = home_kit_actuators(timeout=HOME_TIMEOUT_SECONDS)
+            print(f"[SERIAL] Background HOME_KITS result: {result}", flush=True)
+        finally:
+            with _HOMING_LOCK:
+                _HOMING_IN_PROGRESS = False
+
+    threading.Thread(
+        target=_worker,
+        name="BackgroundHomeKits",
+        daemon=True,
+    ).start()
+
     return {
-        "success": False,
-        "message": "No BILL_STATUS:OFF confirmation received.",
-        "replies": replies,
+        "success": True,
+        "message": "HOME_KITS started in background",
+        "background": True,
     }
 
 
-def _normalize_breakdown(breakdown: dict):
+def get_kit_status(timeout=5):
+    replies = _send_command_and_collect(
+        "GET_KIT_STATUS\n",
+        timeout=timeout,
+        wait_for_prefixes=("KIT_STATUS:",),
+    )
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper.startswith("KIT_STATUS:"):
+            return _success_result(line, replies, status_line=line)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result("No KIT_STATUS response received from Arduino.", replies)
+
+
+def are_kits_homed():
+    if _KITS_HOMED_EVENT.is_set():
+        return True
+
+    status = get_kit_status(timeout=5)
+
+    if status.get("success"):
+        line = str(status.get("status_line") or status.get("message") or "")
+
+        if "KIT1=" in line and "KIT2=" in line:
+            parts = line.split(";")
+
+            if len(parts) >= 2 and all("HOMED=1" in part for part in parts[:2]):
+                _KITS_HOMED_EVENT.set()
+                return True
+
+    return False
+
+
+def ensure_kits_homed(timeout=HOME_TIMEOUT_SECONDS):
+    with _HOMING_LOCK:
+        homing_running = _HOMING_IN_PROGRESS
+
+    if homing_running:
+        ok = _KITS_HOMED_EVENT.wait(timeout=float(timeout))
+
+        if ok:
+            return _success_result("Kits homed.", [])
+
+        return _error_result("Timed out waiting for background HOME_KITS before dispense.", [])
+
+    if are_kits_homed():
+        return _success_result("Kits already homed.", [])
+
+    start_background_home_kits()
+
+    ok = _KITS_HOMED_EVENT.wait(timeout=float(timeout))
+
+    if ok:
+        return _success_result("Kits homed.", [])
+
+    return _error_result("Timed out waiting for HOME_KITS before dispense.", [])
+
+
+def reset_kit_slots(timeout=5):
+    replies = _send_command_and_collect(
+        "RESET_KIT_SLOTS\n",
+        timeout=timeout,
+        wait_for_lines={"KIT_SLOTS_RESET"},
+    )
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper == "KIT_SLOTS_RESET":
+            return _success_result(line, replies)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result("No KIT_SLOTS_RESET confirmation received.", replies)
+
+
+# =====================================================
+# RETURN HOME AFTER STOCK ZERO
+# =====================================================
+
+def return_kit_home(kit_code, timeout=RETURN_HOME_TIMEOUT_SECONDS):
+    kit_code = _clean(kit_code).upper()
+
+    if kit_code not in {"KIT1", "KIT2"}:
+        return _error_result(f"Invalid return-home kit code: {kit_code}", [])
+
+    command = f"RETURN_{kit_code}_HOME\n"
+    expected = f"KIT_RETURNED_HOME:{kit_code}"
+
+    replies = _send_command_and_collect(
+        command,
+        timeout=timeout,
+        wait_for_prefixes=(expected,),
+    )
+
+    got_ok = False
+    final_line = None
+    error_line = None
+    busy = False
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper == "OK":
+            got_ok = True
+        elif upper == "BUSY":
+            busy = True
+        elif upper.startswith(expected):
+            final_line = line
+        elif _is_failure_line(upper):
+            error_line = line
+
+    if busy:
+        return _error_result(_translate_arduino_error("BUSY"), replies)
+
+    if error_line:
+        return _error_result(_translate_arduino_error(error_line), replies)
+
+    if final_line:
+        return _success_result(final_line, replies, returned_home=kit_code)
+
+    if got_ok:
+        return _error_result(
+            f"Arduino accepted RETURN_{kit_code}_HOME, but no {expected} confirmation was received.",
+            replies,
+        )
+
+    return _error_result(f"No valid RETURN_{kit_code}_HOME response received.", replies)
+
+
+# =====================================================
+# CHANGE DISPENSING
+# =====================================================
+
+def _normalize_breakdown(breakdown):
     normalized = {}
 
     if not isinstance(breakdown, dict):
@@ -308,20 +890,20 @@ def _normalize_breakdown(breakdown: dict):
     return normalized
 
 
-def _build_change_command_payload(breakdown: dict):
+def _build_change_command_payload(breakdown):
     normalized = _normalize_breakdown(breakdown)
-    ordered_denoms = [20, 5, 1]
     parts = []
 
-    for denom in ordered_denoms:
+    for denom in (20, 5, 1):
         qty = normalized.get(denom, 0)
+
         if qty > 0:
             parts.append(f"{denom}x{qty}")
 
     return ",".join(parts), normalized
 
 
-def _parse_change_dispensed_line(change_line: str):
+def _parse_change_dispensed_line(change_line):
     result = {}
 
     try:
@@ -332,12 +914,14 @@ def _parse_change_dispensed_line(change_line: str):
     if not payload or payload == "0":
         return result
 
-    parts = [p.strip() for p in payload.split(",") if p.strip()]
-    for part in parts:
-        if "x" not in part:
+    for part in [p.strip() for p in payload.split(",") if p.strip()]:
+        lowered = part.lower()
+
+        if "x" not in lowered:
             continue
 
-        left, right = part.split("x", 1)
+        left, right = lowered.split("x", 1)
+
         try:
             denom = int(left.strip())
             qty = int(right.strip())
@@ -349,86 +933,39 @@ def _parse_change_dispensed_line(change_line: str):
 
     return result
 
-def send_raw_command(command: str, timeout=5):
-    """
-    Send a raw command to Arduino using the existing serial pipeline.
-    """
-    if not command.endswith("\n"):
-        command = command + "\n"
 
-    replies = _send_command_and_collect(command, timeout=timeout)
-
-    if not replies:
-        return {
-            "success": False,
-            "message": "No reply from Arduino",
-            "replies": [],
-        }
-
-    return {
-        "success": True,
-        "message": replies[-1],
-        "replies": replies,
-    }
-
-
-def _estimate_change_timeout(normalized: dict) -> int:
-    """
-    Estimate how long the Arduino will need.
-    Uses generous values so the Pi does not give up too early.
-    """
+def _estimate_change_timeout(normalized):
     count20 = int(normalized.get(20, 0))
     count5 = int(normalized.get(5, 0))
     count1 = int(normalized.get(1, 0))
 
-    # Conservative estimates in seconds per coin
-    sec_per_20 = 5.5
-    sec_per_5 = 4.0
-    sec_per_1 = 3.5
+    estimated = 10.0 + (count20 * 8.0) + (count5 * 6.0) + (count1 * 6.0)
 
-    base = 8.0
-    group_pause = 2.0
+    groups = sum(1 for denom in (20, 5, 1) if normalized.get(denom, 0) > 0)
+    estimated += max(0, groups - 1) * 2.0
+    estimated += 15.0
 
-    groups = 0
-    if count20 > 0:
-        groups += 1
-    if count5 > 0:
-        groups += 1
-    if count1 > 0:
-        groups += 1
-
-    estimated = (
-        base
-        + (count20 * sec_per_20)
-        + (count5 * sec_per_5)
-        + (count1 * sec_per_1)
-        + max(0, groups - 1) * group_pause
-    )
-
-    # Add margin
-    estimated += 8.0
-
-    # Never too short
-    return max(20, int(round(estimated)))
+    return max(30, int(round(estimated)))
 
 
-def send_change_command(breakdown: dict):
+def send_change_command(breakdown):
     command_payload, normalized = _build_change_command_payload(breakdown)
 
     if not normalized:
-        return {
-            "success": False,
-            "message": "Invalid or empty change breakdown.",
-            "requested_breakdown": {},
-            "confirmed_breakdown": {},
-            "replies": [],
-        }
+        return _error_result(
+            "Invalid or empty change breakdown.",
+            [],
+            requested_breakdown={},
+            confirmed_breakdown={},
+        )
 
     timeout = _estimate_change_timeout(normalized)
 
     replies = _send_command_and_collect(
         f"DISPENSE_CHANGE:{command_payload}\n",
-        timeout=timeout
+        timeout=timeout,
+        wait_for_prefixes=("CHANGE_DISPENSED:",),
+        wait_for_lines={"BUSY"},
     )
 
     got_ok = False
@@ -437,7 +974,7 @@ def send_change_command(breakdown: dict):
     busy = False
 
     for line in replies:
-        upper = line.upper()
+        upper = _upper(line)
 
         if upper == "OK":
             got_ok = True
@@ -445,82 +982,102 @@ def send_change_command(breakdown: dict):
             busy = True
         elif upper.startswith("CHANGE_DISPENSED:"):
             change_line = line
-        elif upper.startswith("ERROR:"):
+        elif _is_failure_line(upper):
             error_line = line
 
     if busy:
-        return {
-            "success": False,
-            "message": "Arduino is busy.",
-            "requested_breakdown": normalized,
-            "confirmed_breakdown": {},
-            "replies": replies,
-        }
+        return _error_result(
+            _translate_arduino_error("BUSY"),
+            replies,
+            requested_breakdown=normalized,
+            confirmed_breakdown={},
+        )
 
     if error_line:
-        return {
-            "success": False,
-            "message": error_line,
-            "requested_breakdown": normalized,
-            "confirmed_breakdown": {},
-            "replies": replies,
-        }
+        return _error_result(
+            _translate_arduino_error(error_line),
+            replies,
+            requested_breakdown=normalized,
+            confirmed_breakdown={},
+        )
 
     if change_line:
         confirmed = _parse_change_dispensed_line(change_line)
 
         if confirmed != normalized:
-            return {
-                "success": False,
-                "message": (
-                    f"Arduino confirmed a different breakdown. "
-                    f"Requested={normalized}, Confirmed={confirmed}"
-                ),
-                "requested_breakdown": normalized,
-                "confirmed_breakdown": confirmed,
-                "replies": replies,
-            }
+            return _error_result(
+                f"Arduino confirmed a different breakdown. Requested={normalized}, Confirmed={confirmed}",
+                replies,
+                requested_breakdown=normalized,
+                confirmed_breakdown=confirmed,
+            )
 
-        return {
-            "success": True,
-            "message": change_line,
-            "requested_breakdown": normalized,
-            "confirmed_breakdown": confirmed,
-            "replies": replies,
-        }
+        return _success_result(
+            change_line,
+            replies,
+            requested_breakdown=normalized,
+            confirmed_breakdown=confirmed,
+        )
 
     if got_ok:
-        return {
-            "success": False,
-            "message": "Command accepted, but no final CHANGE_DISPENSED confirmation was received.",
-            "requested_breakdown": normalized,
-            "confirmed_breakdown": {},
-            "replies": replies,
-        }
+        return _error_result(
+            "Command accepted, but no final CHANGE_DISPENSED confirmation was received.",
+            replies,
+            requested_breakdown=normalized,
+            confirmed_breakdown={},
+        )
 
-    return {
-        "success": False,
-        "message": "No valid change response received from Arduino.",
-        "requested_breakdown": normalized,
-        "confirmed_breakdown": {},
-        "replies": replies,
-    }
+    return _error_result(
+        "No valid change response received from Arduino.",
+        replies,
+        requested_breakdown=normalized,
+        confirmed_breakdown={},
+    )
 
 
-def send_dispense_command(product_id="", product_name=""):
+# =====================================================
+# KIT DISPENSING
+# =====================================================
+
+def _estimate_dispense_timeout(expected_kit, return_home_after=False):
+    if return_home_after:
+        return 150
+
+    return DISPENSE_TIMEOUT_SECONDS
+
+
+def send_dispense_command(
+    product_id="",
+    product_name="",
+    return_home_after=False,
+):
+    homed = ensure_kits_homed()
+
+    if not homed.get("success"):
+        return homed
+
     command, expected_kit = map_product_to_command(
         product_id=product_id,
-        product_name=product_name
+        product_name=product_name,
     )
 
     if not command or not expected_kit:
-        return {
-            "success": False,
-            "message": f"Unknown product mapping. product_id={product_id}, product_name={product_name}",
-            "replies": [],
-        }
+        return _error_result(
+            f"Unknown product mapping. product_id={product_id}, product_name={product_name}",
+            [],
+        )
 
-    replies = _send_command_and_collect(command, timeout=SERIAL_TIMEOUT)
+    timeout = _estimate_dispense_timeout(
+        expected_kit,
+        return_home_after=return_home_after,
+    )
+
+    replies = _send_command_and_collect(
+        command,
+        timeout=timeout,
+        wait_for_prefixes=("DISPENSED:",),
+        wait_for_lines={"BUSY"},
+    )
 
     got_ok = False
     dispensed_line = None
@@ -528,7 +1085,7 @@ def send_dispense_command(product_id="", product_name=""):
     busy = False
 
     for line in replies:
-        upper = line.upper()
+        upper = _upper(line)
 
         if upper == "OK":
             got_ok = True
@@ -536,47 +1093,190 @@ def send_dispense_command(product_id="", product_name=""):
             busy = True
         elif upper.startswith("DISPENSED:"):
             dispensed_line = line
-        elif upper.startswith("ERROR:"):
+        elif _is_failure_line(upper):
             error_line = line
 
     if busy:
-        return {
-            "success": False,
-            "message": "Arduino is busy dispensing another operation.",
-            "replies": replies,
-        }
+        return _error_result(
+            "Arduino is busy dispensing another operation.",
+            replies,
+            expected_kit=expected_kit,
+        )
 
     if error_line:
-        return {
-            "success": False,
-            "message": error_line,
-            "replies": replies,
-        }
+        return _error_result(
+            _translate_arduino_error(error_line),
+            replies,
+            expected_kit=expected_kit,
+            raw_error=error_line,
+        )
 
-    if dispensed_line:
-        actual_kit = dispensed_line.split(":", 1)[1].strip().upper()
-        if actual_kit != expected_kit:
-            return {
-                "success": False,
-                "message": f"Arduino dispensed {actual_kit}, but expected {expected_kit}.",
-                "replies": replies,
-            }
+    if not dispensed_line:
+        if got_ok:
+            return _error_result(
+                f"Command accepted for {expected_kit}, but no final DISPENSED confirmation was received.",
+                replies,
+                expected_kit=expected_kit,
+            )
 
-        return {
-            "success": True,
-            "message": dispensed_line,
-            "replies": replies,
-        }
+        return _error_result(
+            "No valid dispense response received from Arduino.",
+            replies,
+            expected_kit=expected_kit,
+        )
+
+    actual_kit = _extract_dispensed_kit(dispensed_line)
+
+    if actual_kit != expected_kit:
+        return _error_result(
+            f"Arduino dispensed {actual_kit}, but expected {expected_kit}.",
+            replies,
+            expected_kit=expected_kit,
+            actual_kit=actual_kit,
+        )
+
+    payload = _success_result(
+        dispensed_line,
+        replies,
+        expected_kit=expected_kit,
+        actual_kit=actual_kit,
+        return_home_after=bool(return_home_after),
+        returned_home=False,
+        return_home_result=None,
+    )
+
+    if return_home_after and expected_kit in {"KIT1", "KIT2"}:
+        home_result = return_kit_home(expected_kit)
+
+        payload["return_home_result"] = home_result
+        payload["returned_home"] = bool(home_result.get("success"))
+
+        if not home_result.get("success"):
+            payload["success"] = False
+            payload["message"] = (
+                f"{dispensed_line}, but return-home failed: "
+                f"{home_result.get('message')}"
+            )
+
+    return payload
+
+
+# =====================================================
+# RVM / TRASH
+# =====================================================
+
+def send_dispose_kit_command(timeout=None):
+    if timeout is None:
+        try:
+            from config_manager import config
+
+            timeout = int(config.get("kit_queue", "dispose_timeout_seconds", default=45))
+        except Exception:
+            timeout = DISPOSE_TIMEOUT_SECONDS
+
+    replies = _send_command_and_collect(
+        "DISPOSE_KIT\n",
+        timeout=timeout,
+        wait_for_prefixes=("DISPOSED:",),
+        wait_for_lines={"BUSY"},
+    )
+
+    got_ok = False
+    disposed_line = None
+    error_line = None
+    busy = False
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper == "OK":
+            got_ok = True
+        elif upper == "BUSY":
+            busy = True
+        elif upper.startswith("DISPOSED:"):
+            disposed_line = line
+        elif _is_failure_line(upper):
+            error_line = line
+
+    if busy:
+        return _error_result(_translate_arduino_error("BUSY"), replies)
+
+    if error_line:
+        return _error_result(_translate_arduino_error(error_line), replies)
+
+    if disposed_line:
+        return _success_result(disposed_line, replies)
 
     if got_ok:
-        return {
-            "success": False,
-            "message": f"Command accepted for {expected_kit}, but no final DISPENSED confirmation was received.",
-            "replies": replies,
-        }
+        return _error_result(
+            "Command accepted, but no final DISPOSED confirmation was received.",
+            replies,
+        )
 
-    return {
-        "success": False,
-        "message": "No valid dispense response received from Arduino.",
-        "replies": replies,
-    }
+    return _error_result("No valid trash disposal response received from Arduino.", replies)
+
+
+def stop_all():
+    replies = _send_command_and_collect(
+        "STOP\n",
+        timeout=5,
+        wait_for_lines={"STOP_ALL"},
+    )
+
+    for line in replies:
+        if _upper(line) == "STOP_ALL":
+            return _success_result(line, replies)
+
+    return _error_result("No STOP_ALL confirmation received.", replies)
+
+
+# =====================================================
+# BACKWARD-COMPATIBLE ALIASES
+# =====================================================
+
+bill_on = send_bill_on_command
+bill_off = send_bill_off_command
+
+reset_servos = reset_servos_to_rest
+send_reset_servos_command = reset_servos_to_rest
+
+home_kits = home_kit_actuators
+send_home_kits_command = home_kit_actuators
+send_get_kit_status_command = get_kit_status
+
+send_return_kit_home_command = return_kit_home
+send_reset_kit_slots_command = reset_kit_slots
+
+# After physical restocking, home that lane and reset its slot pointer.
+send_restock_command = lambda kit_code="ALL": (
+    home_kit_actuators() if _upper(kit_code) == "ALL"
+    else _send_home_single_kit_fallback(kit_code)
+)
+
+
+def _send_home_single_kit_fallback(kit_code):
+    kit_code = _upper(kit_code)
+
+    if kit_code not in {"KIT1", "KIT2"}:
+        return _error_result(f"Invalid kit code: {kit_code}", [])
+
+    command = f"HOME_{kit_code}\n"
+    expected = f"KIT_HOME_DONE:{kit_code}"
+
+    replies = _send_command_and_collect(
+        command,
+        timeout=HOME_TIMEOUT_SECONDS,
+        wait_for_prefixes=(expected,),
+    )
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper.startswith(expected):
+            _KITS_HOMED_EVENT.set()
+            return _success_result(line, replies)
+
+        if upper == "BUSY" or _is_failure_line(upper):
+            return _error_result(_translate_arduino_error(line), replies)
+
+    return _error_result(f"No {expected} confirmation received.", replies)

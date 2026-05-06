@@ -114,10 +114,21 @@ def validate_discount_token(user_id: str, token: str):
     return post_json("/api/qr-tokens/validate", payload)
 
 
-def store_qr_token(user_id: str, token: str):
+def store_qr_token(
+    user_id: str,
+    token: str,
+    discount_percent: float = 10,
+    source: str = "booth_printed_coupon",
+    receipt_transaction_id: str | None = None,
+    expires_at: str | None = None,
+):
     payload = {
         "userId": str(user_id).strip() if user_id else "",
         "token": str(token).strip() if token else "",
+        "discountPercent": float(discount_percent or 0),
+        "source": str(source or "booth_printed_coupon"),
+        "receiptTransactionId": str(receipt_transaction_id or "").strip(),
+        "expiresAt": str(expires_at or "").strip(),
     }
     return post_json("/api/qr-tokens", payload)
 

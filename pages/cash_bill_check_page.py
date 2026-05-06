@@ -28,6 +28,9 @@ class CashBillCheckPage(ctk.CTkFrame):
         self.shell = AppShell(self, title_right="Cash Bill Check")
         self.shell.pack(fill="both", expand=True)
 
+        # =========================
+        # TOP BAR
+        # =========================
         top_bar = ctk.CTkFrame(self.shell.body, fg_color="transparent")
         top_bar.pack(fill="x", padx=28, pady=(16, 8))
         top_bar.grid_columnconfigure(0, weight=0)
@@ -52,6 +55,12 @@ class CashBillCheckPage(ctk.CTkFrame):
         )
         self.page_title.grid(row=0, column=1)
 
+        self.top_spacer = ctk.CTkFrame(top_bar, fg_color="transparent", width=130, height=58)
+        self.top_spacer.grid(row=0, column=2, sticky="e")
+
+        # =========================
+        # MAIN CONTENT
+        # =========================
         self.content_wrap = ctk.CTkFrame(self.shell.body, fg_color="transparent")
         self.content_wrap.pack(fill="both", expand=True, padx=28, pady=(10, 18))
 
@@ -69,6 +78,9 @@ class CashBillCheckPage(ctk.CTkFrame):
         self.right_col.grid_columnconfigure(0, weight=1)
         self.right_col.grid_rowconfigure(0, weight=1)
 
+        # =========================
+        # LEFT CARD
+        # =========================
         self.left_card = RoundedCard(
             self.left_col,
             auto_size=False,
@@ -84,70 +96,101 @@ class CashBillCheckPage(ctk.CTkFrame):
         self.left_center_wrap = ctk.CTkFrame(left_body, fg_color=theme.WHITE)
         self.left_center_wrap.grid(row=0, column=0, sticky="nsew", padx=16, pady=16)
         self.left_center_wrap.grid_columnconfigure(0, weight=1)
-        self.left_center_wrap.grid_rowconfigure(0, weight=1)
+
+        self.left_center_wrap.grid_rowconfigure(0, weight=0)
         self.left_center_wrap.grid_rowconfigure(1, weight=0)
         self.left_center_wrap.grid_rowconfigure(2, weight=0)
-        self.left_center_wrap.grid_rowconfigure(3, weight=0)
+        self.left_center_wrap.grid_rowconfigure(3, weight=1)
         self.left_center_wrap.grid_rowconfigure(4, weight=0)
-        self.left_center_wrap.grid_rowconfigure(5, weight=0)
-        self.left_center_wrap.grid_rowconfigure(6, weight=1)
 
+        # =========================
+        # HEADER BLOCK
+        # =========================
         self.header_block = ctk.CTkFrame(self.left_center_wrap, fg_color=theme.WHITE)
-        self.header_block.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 14))
+        self.header_block.grid(row=0, column=0, sticky="ew", padx=12, pady=(2, 12))
         self.header_block.grid_columnconfigure(0, weight=1)
 
         self.title_label = ctk.CTkLabel(
             self.header_block,
-            text=config.get("cash_bill_check_page", "prompt_title", default="Enter the Amount of Bills"),
-            font=theme.heavy(28),
+            text=config.get("cash_bill_check_page", "prompt_title", default="Enter Cash Amount"),
+            font=theme.heavy(27),
             text_color=theme.BLACK,
             fg_color=theme.WHITE,
-            wraplength=470,
-            justify="center"
+            wraplength=500,
+            justify="center",
+            anchor="center"
         )
-        self.title_label.grid(row=0, column=0, padx=18, pady=(0, 6), sticky="ew")
+        self.title_label.grid(row=0, column=0, padx=20, pady=(0, 4), sticky="ew")
 
         self.helper_label = ctk.CTkLabel(
             self.header_block,
             text=config.get(
                 "cash_bill_check_page",
                 "helper_text",
-                default="Enter the total amount you plan to insert using accepted bills only."
+                default="Enter the cash amount before inserting bills."
             ),
             font=theme.font(15, "bold"),
             text_color=theme.MUTED,
             fg_color=theme.WHITE,
-            wraplength=470,
-            justify="center"
+            wraplength=500,
+            justify="center",
+            anchor="center"
         )
         self.helper_label.grid(row=1, column=0, padx=24, pady=(0, 0), sticky="ew")
 
-        self.summary_card = ctk.CTkFrame(
-            self.left_center_wrap,
-            fg_color=theme.CREAM,
-            corner_radius=18
-        )
-        self.summary_card.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 14))
-        self.summary_card.grid_columnconfigure(0, weight=1)
+        # =========================
+        # SUMMARY TILES
+        # =========================
+        self.summary_grid = ctk.CTkFrame(self.left_center_wrap, fg_color=theme.WHITE)
+        self.summary_grid.grid(row=1, column=0, sticky="ew", padx=8, pady=(0, 12))
+        self.summary_grid.grid_columnconfigure(0, weight=1, uniform="summary")
+        self.summary_grid.grid_columnconfigure(1, weight=1, uniform="summary")
+        self.summary_grid.grid_columnconfigure(2, weight=1, uniform="summary")
 
-        self.summary_label = ctk.CTkLabel(
-            self.summary_card,
-            text="",
-            font=theme.font(17, "bold"),
-            text_color=theme.BLACK,
-            fg_color=theme.CREAM,
-            wraplength=460,
-            justify="center"
+        (
+            self.product_tile,
+            self.product_title_label,
+            self.product_value_label
+        ) = self._make_summary_tile(
+            self.summary_grid,
+            title="Product",
+            value="—"
         )
-        self.summary_label.grid(row=0, column=0, padx=18, pady=16, sticky="ew")
+        self.product_tile.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
 
+        (
+            self.total_tile,
+            self.total_title_label,
+            self.total_value_label
+        ) = self._make_summary_tile(
+            self.summary_grid,
+            title="Total",
+            value="₱0.00",
+            value_color=theme.BLACK
+        )
+        self.total_tile.grid(row=0, column=1, sticky="nsew", padx=6)
+
+        (
+            self.discount_tile,
+            self.discount_title_label,
+            self.discount_value_label
+        ) = self._make_summary_tile(
+            self.summary_grid,
+            title="Discount",
+            value="None"
+        )
+        self.discount_tile.grid(row=0, column=2, sticky="nsew", padx=(6, 0))
+
+        # =========================
+        # AMOUNT INPUT
+        # =========================
         self.input_card = RoundedCard(
             self.left_center_wrap,
             auto_size=False,
-            height=132,
+            height=142,
             pad=8
         )
-        self.input_card.grid(row=3, column=0, padx=10, pady=(0, 14), sticky="ew")
+        self.input_card.grid(row=2, column=0, padx=8, pady=(0, 12), sticky="ew")
         self.input_card.grid_propagate(False)
 
         input_body = card_body(self.input_card)
@@ -155,24 +198,24 @@ class CashBillCheckPage(ctk.CTkFrame):
 
         input_inner = ctk.CTkFrame(input_body, fg_color=theme.WHITE)
         input_inner.pack(fill="both", expand=True)
-        input_inner.grid_columnconfigure(0, weight=1)
-        input_inner.grid_columnconfigure(1, weight=0)
-        input_inner.grid_columnconfigure(2, weight=4)
+        input_inner.grid_columnconfigure(0, weight=0)
+        input_inner.grid_columnconfigure(1, weight=1)
+        input_inner.grid_columnconfigure(2, weight=0)
         input_inner.grid_rowconfigure(0, weight=1)
 
         self.currency_label = ctk.CTkLabel(
             input_inner,
             text="₱",
-            font=theme.heavy(42),
+            font=theme.heavy(46),
             text_color=theme.BLACK,
             fg_color=theme.WHITE
         )
-        self.currency_label.grid(row=0, column=1, padx=(18, 8), pady=18, sticky="e")
+        self.currency_label.grid(row=0, column=0, padx=(28, 10), pady=18, sticky="e")
 
         self.amount_entry = tk.Entry(
             input_inner,
             textvariable=self.amount_var,
-            font=("Arial", 36, "bold"),
+            font=("Arial", 42, "bold"),
             bd=0,
             relief="flat",
             justify="center",
@@ -180,10 +223,16 @@ class CashBillCheckPage(ctk.CTkFrame):
             fg=theme.BLACK,
             insertbackground=theme.BLACK,
         )
-        self.amount_entry.grid(row=0, column=2, padx=(0, 24), pady=24, sticky="ew")
+        self.amount_entry.grid(row=0, column=1, padx=(0, 18), pady=24, sticky="ew")
         self.amount_entry.bind("<KeyRelease>", self._on_entry_change)
         self.amount_entry.bind("<Return>", lambda e: self.submit_amount())
 
+        self.input_right_spacer = ctk.CTkFrame(input_inner, fg_color="transparent", width=26)
+        self.input_right_spacer.grid(row=0, column=2, sticky="ns")
+
+        # =========================
+        # MESSAGE AREA
+        # =========================
         self.message_card = ctk.CTkFrame(
             self.left_center_wrap,
             fg_color=theme.WHITE,
@@ -191,9 +240,7 @@ class CashBillCheckPage(ctk.CTkFrame):
             border_width=2,
             border_color=theme.CREAM
         )
-        self.message_card.grid(row=4, column=0, padx=10, pady=(0, 14), sticky="ew")
-        self.message_card.grid_propagate(False)
-        self.message_card.configure(height=132)
+        self.message_card.grid(row=3, column=0, padx=8, pady=(0, 12), sticky="nsew")
         self.message_card.grid_columnconfigure(0, weight=1)
         self.message_card.grid_rowconfigure(0, weight=1)
 
@@ -204,34 +251,48 @@ class CashBillCheckPage(ctk.CTkFrame):
                 "default_message",
                 default="Enter an amount, then press Continue."
             ),
-            font=theme.font(16, "bold"),
+            font=theme.font(24, "bold"),
             text_color=theme.MUTED,
             fg_color=theme.WHITE,
-            wraplength=450,
-            justify="center"
-        )
-        self.message_label.grid(row=0, column=0, padx=18, pady=16, sticky="nsew")
-
-        self.warning_card = ctk.CTkFrame(
-            self.left_center_wrap,
-            fg_color=theme.CREAM,
-            corner_radius=18
-        )
-        self.warning_card.grid(row=5, column=0, padx=10, pady=(0, 0), sticky="ew")
-        self.warning_card.grid_columnconfigure(0, weight=1)
-
-        self.warning_label = ctk.CTkLabel(
-            self.warning_card,
-            text="",
-            font=theme.font(14, "bold"),
-            text_color=theme.MUTED,
-            fg_color=theme.CREAM,
-            wraplength=380,
-            justify="left",
+            wraplength=460,
+            justify="center",
             anchor="center"
         )
-        self.warning_label.grid(row=0, column=0, padx=18, pady=14, sticky="ew")
+        self.message_label.grid(row=0, column=0, padx=28, pady=16, sticky="nsew")
 
+        # =========================
+        # COMPACT GUIDANCE
+        # =========================
+        self.guidance_grid = ctk.CTkFrame(self.left_center_wrap, fg_color=theme.WHITE)
+        self.guidance_grid.grid(row=4, column=0, sticky="ew", padx=8, pady=(0, 2))
+        self.guidance_grid.grid_columnconfigure(0, weight=1, uniform="guides")
+        self.guidance_grid.grid_columnconfigure(1, weight=1, uniform="guides")
+
+        (
+            self.bills_card,
+            self.bills_title_label,
+            self.bills_value_label
+        ) = self._make_guidance_tile(
+            self.guidance_grid,
+            title="Accepted bills",
+            value="₱50, ₱100, ₱200, ₱500, ₱1000"
+        )
+        self.bills_card.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+
+        (
+            self.warning_card,
+            self.warning_title_label,
+            self.warning_label
+        ) = self._make_guidance_tile(
+            self.guidance_grid,
+            title="Change rule",
+            value="Higher cash needs available change."
+        )
+        self.warning_card.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+
+        # =========================
+        # RIGHT CARD / KEYBOARD
+        # =========================
         self.right_card = RoundedCard(
             self.right_col,
             auto_size=False,
@@ -257,6 +318,79 @@ class CashBillCheckPage(ctk.CTkFrame):
 
         self._start_config_refresh()
 
+    # =========================
+    # UI HELPERS
+    # =========================
+    def _make_summary_tile(self, parent, title, value, value_color=None):
+        tile = ctk.CTkFrame(
+            parent,
+            fg_color=theme.CREAM,
+            corner_radius=18
+        )
+        tile.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            tile,
+            text=title,
+            font=theme.font(13, "bold"),
+            text_color=theme.MUTED,
+            fg_color=theme.CREAM,
+            anchor="center",
+            justify="center",
+            width=1
+        )
+        title_label.grid(row=0, column=0, sticky="ew", padx=18, pady=(12, 0))
+
+        value_label = ctk.CTkLabel(
+            tile,
+            text=value,
+            font=theme.font(18, "bold"),
+            text_color=value_color or theme.BLACK,
+            fg_color=theme.CREAM,
+            anchor="center",
+            justify="center",
+            wraplength=130,
+            width=1
+        )
+        value_label.grid(row=1, column=0, sticky="ew", padx=18, pady=(2, 12))
+
+        return tile, title_label, value_label
+
+    def _make_guidance_tile(self, parent, title, value):
+        tile = ctk.CTkFrame(
+            parent,
+            fg_color=theme.CREAM,
+            corner_radius=18
+        )
+        tile.grid_columnconfigure(0, weight=1)
+
+        title_label = ctk.CTkLabel(
+            tile,
+            text=title,
+            font=theme.font(14, "bold"),
+            text_color=theme.BLACK,
+            fg_color=theme.CREAM,
+            anchor="w",
+            justify="left",
+            width=1
+        )
+        title_label.grid(row=0, column=0, sticky="ew", padx=18, pady=(12, 2))
+
+        value_label = ctk.CTkLabel(
+            tile,
+            text=value,
+            font=theme.font(13, "bold"),
+            text_color=theme.MUTED,
+            fg_color=theme.CREAM,
+            anchor="w",
+            justify="left",
+            wraplength=150,
+            width=1
+        )
+        value_label.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 12))
+
+        return tile, title_label, value_label
+
     def _sync_column_sizes(self, event=None):
         try:
             self.update_idletasks()
@@ -272,8 +406,23 @@ class CashBillCheckPage(ctk.CTkFrame):
             self.right_card.configure(width=card_w, height=card_h)
 
             inner_w = max(260, card_w - 68)
-            self.input_card.configure(width=inner_w, height=132)
-            self.message_card.configure(width=inner_w, height=132)
+            self.input_card.configure(width=inner_w, height=142)
+
+            wrap_main = max(260, inner_w - 100)
+            wrap_message = max(260, inner_w - 120)
+            wrap_tile = max(95, (inner_w - 120) // 3)
+            wrap_guide = max(115, (inner_w - 130) // 2)
+
+            self.title_label.configure(wraplength=wrap_main)
+            self.helper_label.configure(wraplength=wrap_main)
+            self.message_label.configure(wraplength=wrap_message)
+
+            self.product_value_label.configure(wraplength=wrap_tile)
+            self.total_value_label.configure(wraplength=wrap_tile)
+            self.discount_value_label.configure(wraplength=wrap_tile)
+
+            self.bills_value_label.configure(wraplength=wrap_guide)
+            self.warning_label.configure(wraplength=wrap_guide)
         except Exception:
             pass
 
@@ -286,13 +435,13 @@ class CashBillCheckPage(ctk.CTkFrame):
                 text=config.get("cash_bill_check_page", "title", default="ENTER CASH AMOUNT")
             )
             self.title_label.configure(
-                text=config.get("cash_bill_check_page", "prompt_title", default="Enter the Amount of Bills")
+                text=config.get("cash_bill_check_page", "prompt_title", default="Enter Cash Amount")
             )
             self.helper_label.configure(
                 text=config.get(
                     "cash_bill_check_page",
                     "helper_text",
-                    default="Enter the total amount you plan to insert using accepted bills only."
+                    default="Enter the cash amount before inserting bills."
                 )
             )
         except Exception as e:
@@ -302,6 +451,9 @@ class CashBillCheckPage(ctk.CTkFrame):
         self._refresh_from_config()
         self._config_refresh_job = self.after(self.REFRESH_MS, self._start_config_refresh)
 
+    # =========================
+    # DATA / PAGE STATE
+    # =========================
     def update_data(self, user_data=None, selected_product=None, discount=0, **kwargs):
         self.user_data = (user_data or {}).copy()
         self.selected_product = (selected_product or {}).copy() if selected_product else None
@@ -312,16 +464,19 @@ class CashBillCheckPage(ctk.CTkFrame):
         self.shell.set_header_right(f"Welcome, {self.user_data.get('username', 'User')}!")
         self.after(10, self._sync_column_sizes)
 
+        accepted_bills_text = ", ".join(f"₱{b}" for b in self._accepted_bills())
+        self.bills_value_label.configure(text=accepted_bills_text)
+
         if not self.selected_product:
-            self.summary_label.configure(
-                text=config.get("cash_bill_check_page", "no_product_text", default="No product selected."),
-                text_color=theme.ERROR
-            )
+            self.product_value_label.configure(text="No product", text_color=theme.ERROR)
+            self.total_value_label.configure(text="—", text_color=theme.ERROR)
+            self.discount_value_label.configure(text="—", text_color=theme.ERROR)
+
             self._set_message(
                 config.get(
                     "cash_bill_check_page",
                     "choose_product_first_text",
-                    default="Please go back and choose a product first."
+                    default="Please choose a product first."
                 ),
                 theme.ERROR,
                 auto_hide_ms=None
@@ -331,25 +486,28 @@ class CashBillCheckPage(ctk.CTkFrame):
             return
 
         total = self._compute_total()
+        product_name = self.selected_product.get("name", "Unknown")
 
-        summary_lines = [
-            f"{config.get('cash_bill_check_page', 'summary_product_label', default='Product')}: {self.selected_product.get('name', 'Unknown')}",
-            f"{config.get('cash_bill_check_page', 'summary_total_label', default='Total to pay')}: ₱{total:.2f}",
-        ]
-
-        if float(self.discount or 0) > 0:
-            summary_lines.append(
-                f"{config.get('cash_bill_check_page', 'summary_discount_label', default='Discount')}: {float(self.discount):.0f}%"
-            )
-
-        summary_lines.append(
-            f"Accepted bills: {', '.join(f'₱{b}' for b in self._accepted_bills())}"
-        )
-
-        self.summary_label.configure(
-            text="\n".join(summary_lines),
+        self.product_value_label.configure(
+            text=str(product_name),
             text_color=theme.BLACK
         )
+
+        self.total_value_label.configure(
+            text=f"₱{total:.2f}",
+            text_color=theme.BLACK
+        )
+
+        if float(self.discount or 0) > 0:
+            self.discount_value_label.configure(
+                text=f"{float(self.discount):.0f}% off",
+                text_color=theme.SUCCESS
+            )
+        else:
+            self.discount_value_label.configure(
+                text="None",
+                text_color=theme.MUTED
+            )
 
         self._set_message(
             config.get(
@@ -382,6 +540,7 @@ class CashBillCheckPage(ctk.CTkFrame):
     def _set_message(self, text, color, auto_hide_ms=None):
         self._clear_message_timer()
         self.message_label.configure(text=text, text_color=color)
+
         if auto_hide_ms:
             self._message_hide_job = self.after(
                 auto_hide_ms,
@@ -396,6 +555,9 @@ class CashBillCheckPage(ctk.CTkFrame):
                 )
             )
 
+    # =========================
+    # PAYMENT LOGIC
+    # =========================
     def _compute_total(self):
         if not self.selected_product:
             return 0.0
@@ -489,7 +651,7 @@ class CashBillCheckPage(ctk.CTkFrame):
             config.get(
                 "cash_bill_check_page",
                 "validate_prompt_text",
-                default="Press Continue to validate this amount."
+                default="Press Continue to check this amount."
             ),
             theme.MUTED,
             auto_hide_ms=None
@@ -498,6 +660,7 @@ class CashBillCheckPage(ctk.CTkFrame):
     def append_digit(self, digit):
         max_digits = int(config.get("cash_bill_check_page", "max_digits", default=4))
         current = "".join(ch for ch in self.amount_var.get() if ch.isdigit())[:max_digits]
+
         if len(current) >= max_digits:
             self._focus_entry()
             return
@@ -508,7 +671,7 @@ class CashBillCheckPage(ctk.CTkFrame):
             config.get(
                 "cash_bill_check_page",
                 "validate_prompt_text",
-                default="Press Continue to validate this amount."
+                default="Press Continue to check this amount."
             ),
             theme.MUTED,
             auto_hide_ms=None
@@ -539,6 +702,7 @@ class CashBillCheckPage(ctk.CTkFrame):
         for current in range(amount + 1):
             if not reachable[current]:
                 continue
+
             for bill in accepted:
                 nxt = current + bill
                 if nxt <= amount:
@@ -554,6 +718,7 @@ class CashBillCheckPage(ctk.CTkFrame):
         for bill in accepted:
             if remaining <= 0:
                 break
+
             count = remaining // bill
             if count > 0:
                 combo[bill] = count
@@ -561,11 +726,13 @@ class CashBillCheckPage(ctk.CTkFrame):
 
         if remaining != 0:
             return None
+
         return combo
 
     def _compute_change_breakdown_local(self, change_amount):
         if change_amount < 0:
             return None
+
         if change_amount == 0:
             return {}
 
@@ -581,6 +748,7 @@ class CashBillCheckPage(ctk.CTkFrame):
                 continue
 
             use_count = min(stock, remaining // denom)
+
             if use_count > 0:
                 breakdown[denom] = use_count
                 remaining -= use_count * denom
@@ -598,23 +766,28 @@ class CashBillCheckPage(ctk.CTkFrame):
     def _format_bill_combo(self, combo):
         if not combo:
             return "N/A"
+
         parts = []
         for bill in sorted(combo.keys(), reverse=True):
             count = combo[bill]
             if count > 0:
                 parts.append(f"{count}×₱{bill}")
+
         return ", ".join(parts)
 
     def _format_change_breakdown(self, breakdown):
         if breakdown is None:
             return "N/A"
+
         if not breakdown:
             return "No change needed"
+
         parts = []
         for denom in sorted(breakdown.keys(), reverse=True):
             count = breakdown[denom]
             if count > 0:
                 parts.append(f"{count}×₱{denom}")
+
         return ", ".join(parts)
 
     def _update_warning_style(self, total):
@@ -623,31 +796,33 @@ class CashBillCheckPage(ctk.CTkFrame):
         if int(round(total)) >= threshold:
             warning_bg = "#FBE3E0"
             self.warning_card.configure(fg_color=warning_bg)
+            self.warning_title_label.configure(
+                text="High amount rule",
+                text_color=theme.ERROR,
+                fg_color=warning_bg
+            )
             self.warning_label.configure(
-                text=(
-                    "HIGH AMOUNT PURCHASE\n"
-                    "EXACT AMOUNT ONLY\n\n"
-                    "Please insert the exact total using accepted bills.\n"
-                    "Change may not be available for this purchase."
-                ),
+                text="Exact amount only.",
                 text_color=theme.ERROR,
                 fg_color=warning_bg,
-                font=theme.font(18, "bold"),
-                wraplength=360,
-                justify="center",
+                font=theme.font(14, "bold"),
+                justify="left",
+                anchor="w",
             )
         else:
             self.warning_card.configure(fg_color=theme.CREAM)
+            self.warning_title_label.configure(
+                text="Change rule",
+                text_color=theme.BLACK,
+                fg_color=theme.CREAM
+            )
             self.warning_label.configure(
-                text=(
-                    "• You may enter an exact total like ₱150 (₱100 + ₱50)\n"
-                    "• Larger amounts are accepted only if exact change can be given"
-                ),
+                text="Higher cash needs available change.",
                 text_color=theme.MUTED,
                 fg_color=theme.CREAM,
-                font=theme.font(14, "bold"),
-                wraplength=360,
+                font=theme.font(13, "bold"),
                 justify="left",
+                anchor="w",
             )
 
     def _validate_amount(self, amount):
@@ -659,40 +834,35 @@ class CashBillCheckPage(ctk.CTkFrame):
             return False, config.get(
                 "cash_bill_check_page",
                 "invalid_amount_text",
-                default="Please enter a valid cash amount."
+                default="Enter a valid cash amount."
             )
 
         if not self._can_compose_amount_from_accepted_bills(amount):
             accepted_text = ", ".join(f"₱{b}" for b in self._accepted_bills())
             return False, (
-                f"Entered amount cannot be formed using accepted bills only.\n"
-                f"Accepted bills: {accepted_text}\n"
-                f"Examples: ₱150 = ₱100 + ₱50, ₱250 = ₱200 + ₱50."
+                f"Use accepted bills only.\n"
+                f"Accepted: {accepted_text}\n"
+                f"Example: ₱150 = ₱100 + ₱50."
             )
 
         if amount < total_int:
             return False, (
-                f"₱{amount:.2f} is not enough for this purchase.\n"
-                f"Please enter an amount equal to or greater than ₱{total:.2f}."
+                f"Amount is too low.\n"
+                f"Enter at least ₱{total:.2f}."
             )
 
         if total_int >= threshold:
             if amount != total_int:
                 return False, (
-                    f"HIGH AMOUNT PURCHASE\n"
-                    f"Please insert the exact amount only.\n\n"
-                    f"Total to pay: ₱{total_int:.2f}\n"
-                    f"Entered amount: ₱{amount:.2f}\n\n"
-                    f"Change may not be available for this purchase."
+                    f"Exact amount required.\n"
+                    f"Enter exactly ₱{total_int:.2f}."
                 )
 
             bill_combo = self._build_bill_combo(amount)
             return True, (
-                f"HIGH AMOUNT PURCHASE\n"
-                f"Exact amount confirmed.\n\n"
-                f"Entered amount: ₱{amount:.2f}\n"
-                f"Planned bills: {self._format_bill_combo(bill_combo)}\n\n"
-                f"Amount accepted. Proceeding to cash payment..."
+                f"Exact amount confirmed.\n"
+                f"Bills: {self._format_bill_combo(bill_combo)}\n\n"
+                f"Proceeding to cash payment..."
             )
 
         change_needed = int(round(amount - total_int))
@@ -700,8 +870,9 @@ class CashBillCheckPage(ctk.CTkFrame):
 
         if change_needed > 0 and change_breakdown is None:
             return False, (
-                f"Exact change for ₱{change_needed:.2f} cannot be provided with the current coin inventory.\n"
-                f"Please enter a smaller valid amount."
+                f"Change is not available.\n"
+                f"Needed change: ₱{change_needed:.2f}\n"
+                f"Enter exact or a smaller valid amount."
             )
 
         max_change_coins = int(
@@ -711,20 +882,24 @@ class CashBillCheckPage(ctk.CTkFrame):
 
         if change_needed > 0 and change_coin_count > max_change_coins:
             return False, (
-                f"Entered amount is too large for a practical change dispense.\n"
-                f"Expected change: ₱{change_needed:.2f}\n"
-                f"Change would require {change_coin_count} coins, which exceeds the limit of {max_change_coins}.\n"
-                f"Please enter a smaller valid amount."
+                f"Too much change required.\n"
+                f"Enter exact or a smaller valid amount."
             )
 
         bill_combo = self._build_bill_combo(amount)
 
+        if change_needed > 0:
+            return True, (
+                f"Amount accepted.\n"
+                f"Bills: {self._format_bill_combo(bill_combo)}\n"
+                f"Change: ₱{change_needed:.2f}\n\n"
+                f"Proceeding to cash payment..."
+            )
+
         return True, (
-            f"Entered amount: ₱{amount:.2f}\n"
-            f"Planned bills: {self._format_bill_combo(bill_combo)}\n"
-            f"Expected change: ₱{change_needed:.2f}\n"
-            f"Change breakdown: {self._format_change_breakdown(change_breakdown)}\n\n"
-            f"Amount accepted. Proceeding to cash payment..."
+            f"Exact amount accepted.\n"
+            f"Bills: {self._format_bill_combo(bill_combo)}\n\n"
+            f"Proceeding to cash payment..."
         )
 
     def submit_amount(self):

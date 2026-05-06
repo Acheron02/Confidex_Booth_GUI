@@ -22,8 +22,13 @@ from pages.dispensing_page import DispensingPage
 from pages.cash_bill_check_page import CashBillCheckPage
 from pages.change_dispensing_page import ChangeDispensingPage
 from frontend.components.error_dialog import ErrorDialog
-
-from backend.util.dispenser_serial import send_bill_off_command, send_raw_command
+from backend.util.kit_queue_worker import start_kit_queue_worker
+from backend.util.dispenser_serial import (
+    send_bill_off_command,
+    reset_servos_to_rest,
+    home_kit_actuators,
+    get_kit_status,
+)
 from backend.device_sync import start_background_sync
 
 
@@ -51,20 +56,123 @@ def start_fastapi():
     except Exception as e:
         print(f"[FASTAPI] Failed to start: {e}", flush=True)
 
+
 def ensure_servos_reset():
     try:
-        result = send_raw_command("RESET_SERVOS")
+        result = reset_servos_to_rest(timeout=8)
         print(f"[STARTUP] RESET_SERVOS result: {result}", flush=True)
+
+        if result.get("success"):
+            return True
+
+        message = str(result.get("message", "")).upper()
+        replies = [str(item).upper() for item in result.get("replies", [])]
+
+        if "UNKNOWN_COMMAND" in message or any("UNKNOWN_COMMAND" in r for r in replies):
+            print(
+                "[STARTUP] RESET_SERVOS is not supported by the current Arduino sketch; continuing.",
+                flush=True,
+            )
+            return True
+
+        return False
     except Exception as e:
         print(f"[STARTUP] Failed to reset servos to rest: {e}", flush=True)
+        return False
 
 
 def ensure_bill_acceptor_off():
     try:
         result = send_bill_off_command()
         print(f"[STARTUP] BILL_OFF result: {result}", flush=True)
+
+        if result.get("success"):
+            return True
+
+        print(
+            "[STARTUP] BILL_OFF did not confirm. Continuing because bill acceptor is also controlled by GPIO page logic.",
+            flush=True,
+        )
+        return False
     except Exception as e:
         print(f"[STARTUP] Failed to force bill acceptor OFF: {e}", flush=True)
+        return False
+
+
+def ensure_kit_actuators_home():
+    """
+    Home both kit actuators from Raspberry Pi side.
+
+    This is intentionally allowed to run in a background thread by
+    start_startup_hardware_init(), so the GUI does not freeze before showing.
+    """
+    try:
+        result = home_kit_actuators(timeout=120)
+        print(f"[STARTUP] HOME_KITS result: {result}", flush=True)
+
+        status = get_kit_status(timeout=5)
+        print(f"[STARTUP] KIT_STATUS result: {status}", flush=True)
+
+        return bool(result.get("success"))
+    except Exception as e:
+        print(f"[STARTUP] Failed to home kit actuators: {e}", flush=True)
+        return False
+
+
+def start_startup_hardware_init():
+    """
+    Run serial startup tasks without blocking the GUI.
+
+    Order:
+      1. BILL_OFF
+      2. RESET_SERVOS
+      3. HOME_KITS
+      4. KIT_STATUS
+
+    This prevents the app from freezing before WelcomePage appears.
+    """
+
+    def worker():
+        print("[STARTUP] Hardware init thread started", flush=True)
+
+        try:
+            ensure_bill_acceptor_off()
+        except Exception as e:
+            print(f"[STARTUP] BILL_OFF startup step failed: {e}", flush=True)
+
+        try:
+            ensure_servos_reset()
+        except Exception as e:
+            print(f"[STARTUP] RESET_SERVOS startup step failed: {e}", flush=True)
+
+        try:
+            ensure_kit_actuators_home()
+        except Exception as e:
+            print(f"[STARTUP] HOME_KITS startup step failed: {e}", flush=True)
+
+        print("[STARTUP] Hardware init thread finished", flush=True)
+
+    threading.Thread(
+        target=worker,
+        name="StartupHardwareInit",
+        daemon=True,
+    ).start()
+
+
+def start_device_sync_safely():
+    try:
+        start_background_sync()
+    except Exception as e:
+        print(f"[DEVICE WS] Failed to start background sync: {e}", flush=True)
+        traceback.print_exc()
+
+
+def start_kit_queue_worker_safely():
+    try:
+        start_kit_queue_worker()
+    except Exception as e:
+        print(f"[KIT QUEUE] Failed to start worker: {e}", flush=True)
+        traceback.print_exc()
 
 
 class App(ctk.CTk):
@@ -111,7 +219,15 @@ class App(ctk.CTk):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.show_frame("WelcomePage")
+
         threading.excepthook = self._thread_exception_handler
+
+        # Start background systems only after the GUI exists.
+        self.after(300, start_startup_hardware_init)
+        self.after(700, start_device_sync_safely)
+
+        # Delaying this helps avoid native camera/OpenCV startup crashes before Tk is stable.
+        self.after(1200, start_kit_queue_worker_safely)
 
     def enable_fullscreen(self):
         try:
@@ -131,7 +247,6 @@ class App(ctk.CTk):
             print(f"[APP] Frame '{page_name}' does not exist", flush=True)
             return
 
-        # keep app-level state in sync
         user_data = kwargs.get("user_data")
         selected_product = kwargs.get("selected_product") or kwargs.get("product")
         transaction_id = kwargs.get("transaction_id")
@@ -249,6 +364,7 @@ class App(ctk.CTk):
             "hide_loading",
             "disable_bill_acceptor",
         ]
+
         for method_name in cleanup_methods:
             self._call_page_method_if_exists(method_name)
 
@@ -374,7 +490,11 @@ class App(ctk.CTk):
     def _thread_exception_handler(self, args):
         try:
             error_text = "".join(
-                traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)
+                traceback.format_exception(
+                    args.exc_type,
+                    args.exc_value,
+                    args.exc_traceback,
+                )
             )
             print("[THREAD ERROR]", error_text, flush=True)
 
@@ -396,10 +516,6 @@ if __name__ == "__main__":
 
     start_fastapi()
     time.sleep(1)
-
-    ensure_bill_acceptor_off()
-    ensure_servos_reset()
-    start_background_sync()
 
     app = App()
     app.mainloop()

@@ -1,116 +1,732 @@
-import os
-import threading
-from pathlib import Path
-
-from frontend import tk_compat as ctk
 import cv2
 from PIL import Image, ImageTk
-from ultralytics import YOLO
 
+from frontend import tk_compat as ctk
 from frontend import theme
 from frontend.widgets import AppShell, RoundedCard, PillButton, card_body
-from backend.util import api_client
-from backend.util.capture_manager import (
-    get_or_create_capture_session,
-    get_session_timestamp,
-    save_capture_set,
-)
+from backend.util.capture_manager import get_or_create_capture_session
 from config_manager import config
+
+try:
+    from backend.util.kit_queue_worker import enqueue_kit_job, get_latest_queue_frame
+except Exception as import_error:
+    enqueue_kit_job = None
+    get_latest_queue_frame = None
+    _KIT_QUEUE_IMPORT_ERROR = import_error
+else:
+    _KIT_QUEUE_IMPORT_ERROR = None
+
+
+# ---------------------------------------------------------------------
+# Theme-safe helpers
+# ---------------------------------------------------------------------
+
+def _theme(name, fallback):
+    return getattr(theme, name, fallback)
+
+
+BLACK = _theme("BLACK", "#000000")
+CREAM = _theme("CREAM", "#F5F2DE")
+ORANGE = _theme("ORANGE", "#C46A2A")
+WHITE = _theme("WHITE", "#FFFFFF")
+MUTED = _theme("MUTED", "#555555")
+SUCCESS = _theme("SUCCESS", "#237B4B")
+ERROR = _theme("ERROR", "#B3261E")
+INFO = _theme("INFO", "#2457A5")
+
+
+def app_font(size, weight="normal"):
+    try:
+        return theme.font(size, weight)
+    except Exception:
+        return ("Arial", size, weight)
+
+
+def app_heavy(size):
+    try:
+        return theme.heavy(size)
+    except Exception:
+        return ("Arial", size, "bold")
+
+
+def safe_configure(widget, **kwargs):
+    try:
+        widget.configure(**kwargs)
+    except Exception:
+        pass
+
+
+def format_queue_delay(value=None):
+    try:
+        minutes = float(value)
+    except Exception:
+        minutes = 30.0
+
+    total_seconds = max(1, int(round(minutes * 60)))
+
+    if total_seconds < 60:
+        unit = "second" if total_seconds == 1 else "seconds"
+        return f"{total_seconds} {unit}"
+
+    whole_minutes = total_seconds // 60
+    remaining_seconds = total_seconds % 60
+
+    if remaining_seconds == 0:
+        unit = "minute" if whole_minutes == 1 else "minutes"
+        return f"{whole_minutes} {unit}"
+
+    minute_unit = "minute" if whole_minutes == 1 else "minutes"
+    second_unit = "second" if remaining_seconds == 1 else "seconds"
+    return f"{whole_minutes} {minute_unit} and {remaining_seconds} {second_unit}"
 
 
 class KitInsertionPage(ctk.CTkFrame):
+    """
+    Queue-based kit insertion page.
+
+    The queue worker owns the camera.
+    This page only displays the worker's latest published frame.
+
+    Important:
+    - The worker now publishes a clean result-only frame after analysis.
+    - The uploaded original image is handled by kit_queue_worker.py.
+    """
+
     REFRESH_MS = 1500
+    PREVIEW_MS = 180
 
     def __init__(self, master, controller):
-        super().__init__(master, fg_color=theme.CREAM)
+        super().__init__(master, fg_color=CREAM)
+
         self.controller = controller
         self.user_data = {}
         self.selected_product = None
         self.transaction_id = None
-        self._config_refresh_job = None
 
-        model_path = config.get(
-            "kit_insertion_page",
-            "model_path",
-            default=os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "backend",
-                "ipModel",
-                "latesttrain.pt"
-            )
-        )
-        self.model = YOLO(model_path)
+        self._config_refresh_job = None
+        self._preview_job = None
+        self._camera_imgtk = None
+        self._busy = False
+
+        self._step_cards = []
+        self._step_title_labels = []
+        self._step_desc_labels = []
 
         self.shell = AppShell(
             self,
             title_right=config.get(
                 "kit_insertion_page",
                 "header_title",
-                default="Reverse Vending Machine"
-            )
+                default="Reverse Vending Machine",
+            ),
         )
         self.shell.pack(fill="both", expand=True)
 
+        self._build_ui()
+        self._start_config_refresh()
+        self._start_preview_loop()
+
+    def _queue_delay_text(self):
+        return format_queue_delay(
+            config.get("kit_queue", "delay_minutes", default=30)
+        )
+
+    # ------------------------------------------------------------------
+    # UI
+    # ------------------------------------------------------------------
+
+    def _build_ui(self):
+        self.page = ctk.CTkFrame(self.shell.body, fg_color=CREAM)
+        self.page.pack(fill="both", expand=True)
+
+        self.page.grid_columnconfigure(0, weight=1)
+        self.page.grid_rowconfigure(0, weight=0)
+        self.page.grid_rowconfigure(1, weight=1)
+
+        self._build_top_area()
+        self._build_main_card()
+
+        self.bind("<Configure>", self._sync_layout, add="+")
+        self.page.bind("<Configure>", self._sync_layout, add="+")
+        self.main_wrap.bind("<Configure>", self._sync_layout, add="+")
+        self.left_panel.bind("<Configure>", self._sync_layout, add="+")
+        self.right_panel.bind("<Configure>", self._sync_layout, add="+")
+
+    def _build_top_area(self):
+        self.top_area = ctk.CTkFrame(self.page, fg_color=CREAM)
+        self.top_area.grid(row=0, column=0, sticky="ew", padx=28, pady=(14, 10))
+        self.top_area.grid_columnconfigure(0, weight=1)
+
         self.title_label = ctk.CTkLabel(
-            self.shell.body,
+            self.top_area,
             text=config.get(
                 "kit_insertion_page",
                 "title",
-                default="REVERSE VENDING MACHINE"
+                default="REVERSE VENDING MACHINE",
             ),
-            font=theme.heavy(30),
-            text_color=theme.BLACK
+            font=app_heavy(32),
+            text_color=BLACK,
+            fg_color=CREAM,
+            anchor="center",
+            justify="center",
+            wraplength=1200,
         )
-        self.title_label.pack(pady=(18, 10))
+        self.title_label.grid(row=0, column=0, sticky="ew")
 
-        self.card = RoundedCard(self.shell.body)
-        self.card.pack(fill="both", expand=True, padx=24, pady=16)
+    def _build_main_card(self):
+        self.main_wrap = ctk.CTkFrame(self.page, fg_color=CREAM)
+        self.main_wrap.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 14))
+        self.main_wrap.grid_columnconfigure(0, weight=1)
+        self.main_wrap.grid_rowconfigure(0, weight=1)
+
+        self.card = RoundedCard(
+            self.main_wrap,
+            fg_color=WHITE,
+            radius=28,
+            auto_size=False,
+            pad=0,
+            width=1180,
+            height=640,
+        )
+        self.card.grid(row=0, column=0, sticky="nsew")
+
         body = card_body(self.card)
+        safe_configure(body, fg_color=WHITE)
 
-        self.camera_label = ctk.CTkLabel(body, text="", fg_color=theme.WHITE)
-        self.camera_label.pack(pady=(16, 8), fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=8, uniform="kit-layout")
+        body.grid_columnconfigure(1, weight=4, uniform="kit-layout")
+        body.grid_rowconfigure(0, weight=1)
+
+        self.left_panel = ctk.CTkFrame(body, fg_color=WHITE)
+        self.left_panel.grid(row=0, column=0, sticky="nsew", padx=(18, 12), pady=18)
+
+        self.right_panel = ctk.CTkFrame(body, fg_color=WHITE)
+        self.right_panel.grid(row=0, column=1, sticky="nsew", padx=(12, 18), pady=18)
+
+        self._build_camera_panel()
+        self._build_instruction_panel()
+
+    def _build_camera_panel(self):
+        self.left_panel.grid_columnconfigure(0, weight=1)
+        self.left_panel.grid_rowconfigure(0, weight=0)
+        self.left_panel.grid_rowconfigure(1, weight=1)
+        self.left_panel.grid_rowconfigure(2, weight=0)
+
+        self.camera_header = ctk.CTkFrame(self.left_panel, fg_color=WHITE)
+        self.camera_header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.camera_header.grid_columnconfigure(0, weight=1)
+        self.camera_header.grid_columnconfigure(1, weight=0)
+
+        self.camera_title_stack = ctk.CTkFrame(self.camera_header, fg_color=WHITE)
+        self.camera_title_stack.grid(row=0, column=0, sticky="ew", padx=(0, 14))
+        self.camera_title_stack.grid_columnconfigure(0, weight=1)
+
+        self.camera_title = ctk.CTkLabel(
+            self.camera_title_stack,
+            text="Queue Camera Preview",
+            font=app_heavy(25),
+            text_color=BLACK,
+            fg_color=WHITE,
+            anchor="w",
+            justify="left",
+        )
+        self.camera_title.grid(row=0, column=0, sticky="w")
+
+        delay_text = self._queue_delay_text()
+        self.camera_hint = ctk.CTkLabel(
+            self.camera_title_stack,
+            text=(
+                "This is the queue worker camera view. "
+                f"Your timer starts when you confirm insertion. Processing happens after about {delay_text}."
+            ),
+            font=app_font(13, "normal"),
+            text_color=MUTED,
+            fg_color=WHITE,
+            anchor="w",
+            justify="left",
+            wraplength=900,
+        )
+        self.camera_hint.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+
+        self.camera_badge_frame = ctk.CTkFrame(
+            self.camera_header,
+            fg_color="#EAF7EF",
+            corner_radius=999,
+        )
+        self.camera_badge_frame.grid(row=0, column=1, rowspan=2, sticky="ne", pady=(8, 0))
+
+        self.camera_badge = ctk.CTkLabel(
+            self.camera_badge_frame,
+            text="Starting",
+            font=app_font(12, "bold"),
+            text_color=SUCCESS,
+            fg_color="transparent",
+        )
+        self.camera_badge.pack(padx=16, pady=7)
+
+        self.camera_outer = ctk.CTkFrame(
+            self.left_panel,
+            fg_color="#111111",
+            corner_radius=18,
+            border_width=2,
+            border_color="#1F1F1F",
+        )
+        self.camera_outer.grid(row=1, column=0, sticky="nsew")
+        self.camera_outer.grid_columnconfigure(0, weight=1)
+        self.camera_outer.grid_rowconfigure(0, weight=1)
+
+        self.camera_inner = ctk.CTkFrame(
+            self.camera_outer,
+            fg_color="#111111",
+            corner_radius=14,
+        )
+        self.camera_inner.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self.camera_inner.grid_columnconfigure(0, weight=1)
+        self.camera_inner.grid_rowconfigure(0, weight=1)
+
+        self.camera_label = ctk.CTkLabel(
+            self.camera_inner,
+            text=(
+                "Waiting for queue camera preview...\n\n"
+                "Insert the used kit into the return slot,\n"
+                "then tap Confirm Insertion."
+            ),
+            font=app_heavy(22),
+            text_color=WHITE,
+            fg_color="#000000",
+            justify="center",
+            anchor="center",
+            wraplength=760,
+        )
+        self.camera_label.grid(row=0, column=0, sticky="nsew")
+
+        self.result_panel = ctk.CTkFrame(
+            self.left_panel,
+            fg_color="#FFFDF8",
+            corner_radius=0,
+            border_width=1,
+            border_color="#EBD8C6",
+        )
+        self.result_panel.grid(row=2, column=0, sticky="ew", pady=(14, 0))
+        self.result_panel.grid_columnconfigure(0, weight=1)
 
         self.confirmation_label = ctk.CTkLabel(
-            body,
-            text=" ",
-            font=theme.font(20, "bold"),
-            text_color=theme.SUCCESS,
-            fg_color=theme.WHITE
+            self.result_panel,
+            text="",
+            font=app_font(14, "bold"),
+            text_color=SUCCESS,
+            fg_color="#FFFDF8",
+            justify="center",
+            anchor="center",
+            wraplength=900,
         )
-        self.confirmation_label.pack(pady=(0, 8))
 
         self.result_label = ctk.CTkLabel(
-            body,
+            self.result_panel,
             text=config.get(
                 "kit_insertion_page",
                 "initial_text",
-                default="Insert your test kit"
+                default="Insert your test kit",
             ),
-            font=theme.font(28, "bold"),
-            text_color=theme.BLACK,
-            fg_color=theme.WHITE
+            font=app_heavy(24),
+            text_color=BLACK,
+            fg_color="#FFFDF8",
+            justify="center",
+            anchor="center",
+            wraplength=900,
         )
-        self.result_label.pack(pady=(0, 12))
+        self.result_label.grid(row=0, column=0, sticky="ew", padx=20, pady=18)
+
+    def _build_instruction_panel(self):
+        self.right_panel.grid_columnconfigure(0, weight=1)
+        self.right_panel.grid_rowconfigure(0, weight=0)
+        self.right_panel.grid_rowconfigure(1, weight=1)
+        self.right_panel.grid_rowconfigure(2, weight=0)
+
+        self.info_card = ctk.CTkFrame(
+            self.right_panel,
+            fg_color="#FFF9F4",
+            corner_radius=0,
+            border_width=1,
+            border_color="#F0E1D2",
+        )
+        self.info_card.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.info_card.grid_columnconfigure(0, weight=1)
+
+        self.info_inner = ctk.CTkFrame(self.info_card, fg_color="#FFF9F4")
+        self.info_inner.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 18))
+        self.info_inner.grid_columnconfigure(0, weight=1)
+
+        self.info_badge = ctk.CTkFrame(
+            self.info_inner,
+            fg_color="#FFF2E8",
+            corner_radius=0,
+        )
+        self.info_badge.grid(row=0, column=0, sticky="", pady=(0, 10))
+
+        self.info_badge_text = ctk.CTkLabel(
+            self.info_badge,
+            text="KIT QUEUE",
+            font=app_font(12, "bold"),
+            text_color=ORANGE,
+            fg_color="transparent",
+        )
+        self.info_badge_text.pack(padx=12, pady=5)
+
+        self.info_title = ctk.CTkLabel(
+            self.info_inner,
+            text="Return the kit\nsafely",
+            font=app_heavy(22),
+            text_color=BLACK,
+            fg_color="#FFF9F4",
+            anchor="center",
+            justify="center",
+            wraplength=480,
+        )
+        self.info_title.grid(row=1, column=0, sticky="ew")
+
+        self.info_desc = ctk.CTkLabel(
+            self.info_inner,
+            text="You can leave after confirming. The booth will process the kit in the background.",
+            font=app_font(12, "normal"),
+            text_color=MUTED,
+            fg_color="#FFF9F4",
+            anchor="center",
+            justify="center",
+            wraplength=480,
+        )
+        self.info_desc.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+
+        self.steps_area = ctk.CTkFrame(self.right_panel, fg_color=WHITE)
+        self.steps_area.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
+        self.steps_area.grid_columnconfigure(0, weight=1)
+        self.steps_area.grid_rowconfigure(0, weight=1)
+        self.steps_area.grid_rowconfigure(1, weight=1)
+        self.steps_area.grid_rowconfigure(2, weight=2)
+
+        self.step_1 = self._make_step_card(
+            self.steps_area,
+            number="1",
+            title="Insert the used kit",
+            text="Place the completed kit into the return slot.",
+        )
+        self.step_1.grid(row=0, column=0, sticky="nsew", pady=(0, 8))
+
+        self.step_2 = self._make_step_card(
+            self.steps_area,
+            number="2",
+            title="Confirm insertion",
+            text="Tap confirm only after the kit is fully inside.",
+        )
+        self.step_2.grid(row=1, column=0, sticky="nsew", pady=(0, 8))
+
+        self.step_3 = self._make_step_card(
+            self.steps_area,
+            number="3",
+            title="Check online later",
+            text="After the timer, the booth analyzes and uploads your result. The kit is then disposed safely.",
+        )
+        self.step_3.grid(row=2, column=0, sticky="nsew")
+
+        self.action_card = ctk.CTkFrame(
+            self.right_panel,
+            fg_color=WHITE,
+            corner_radius=0,
+        )
+        self.action_card.grid(row=2, column=0, sticky="ew")
+        self.action_card.grid_columnconfigure(0, weight=1)
 
         self.insert_btn = PillButton(
-            body,
+            self.action_card,
             text=config.get(
                 "kit_insertion_page",
                 "confirm_button_text",
-                default="Confirm Insertion"
+                default="Confirm Insertion",
             ),
-            command=lambda: self.capture_image(run_yolo=True),
-            width=280,
-            font=theme.font(18, "bold")
+            command=self.confirm_insertion,
+            width=310,
+            height=58,
+            fg_color=ORANGE,
+            text_color=WHITE,
+            font=app_font(18, "bold"),
         )
-        self.insert_btn.pack(pady=(0, 20))
+        self.insert_btn.grid(row=0, column=0, sticky="ew", pady=(0, 6))
 
-        self.cap = None
-        self.running = False
-        self._after_id = None
-        self._captured_frame = None
+        self.action_note = ctk.CTkLabel(
+            self.action_card,
+            text=f"The {self._queue_delay_text()} timer starts when you confirm insertion.",
+            font=app_font(12, "normal"),
+            text_color=MUTED,
+            fg_color=WHITE,
+            anchor="center",
+            justify="center",
+            wraplength=480,
+        )
+        self.action_note.grid(row=1, column=0, sticky="ew")
 
-        self._start_config_refresh()
+    def _make_step_card(self, parent, number, title, text):
+        card = ctk.CTkFrame(
+            parent,
+            fg_color=WHITE,
+            corner_radius=0,
+            border_width=1,
+            border_color="#EFE1D4",
+        )
+        card.grid_columnconfigure(0, weight=0)
+        card.grid_columnconfigure(1, weight=1)
+        card.grid_rowconfigure(0, weight=1)
+
+        number_wrap = ctk.CTkFrame(
+            card,
+            fg_color="#FFF2E8",
+            corner_radius=0,
+            width=44,
+            height=44,
+        )
+        number_wrap.grid(row=0, column=0, sticky="nw", padx=(14, 12), pady=14)
+        number_wrap.grid_propagate(False)
+
+        number_label = ctk.CTkLabel(
+            number_wrap,
+            text=number,
+            font=app_font(16, "bold"),
+            text_color=ORANGE,
+            fg_color="transparent",
+            anchor="center",
+            justify="center",
+        )
+        number_label.place(relx=0.5, rely=0.5, anchor="center")
+
+        text_wrap = ctk.CTkFrame(card, fg_color=WHITE)
+        text_wrap.grid(row=0, column=1, sticky="nsew", padx=(0, 16), pady=12)
+        text_wrap.grid_columnconfigure(0, weight=1)
+        text_wrap.grid_rowconfigure(0, weight=0)
+        text_wrap.grid_rowconfigure(1, weight=1)
+
+        title_label = ctk.CTkLabel(
+            text_wrap,
+            text=title,
+            font=app_font(16, "bold"),
+            text_color=BLACK,
+            fg_color=WHITE,
+            anchor="w",
+            justify="left",
+            wraplength=480,
+        )
+        title_label.grid(row=0, column=0, sticky="ew")
+
+        desc_label = ctk.CTkLabel(
+            text_wrap,
+            text=text,
+            font=app_font(12, "normal"),
+            text_color=MUTED,
+            fg_color=WHITE,
+            anchor="nw",
+            justify="left",
+            wraplength=480,
+        )
+        desc_label.grid(row=1, column=0, sticky="nsew", pady=(4, 0))
+
+        self._step_cards.append(card)
+        self._step_title_labels.append(title_label)
+        self._step_desc_labels.append(desc_label)
+
+        return card
+
+    # ------------------------------------------------------------------
+    # Shared camera preview from queue worker
+    # ------------------------------------------------------------------
+
+    def _start_preview_loop(self):
+        self._cancel_preview_loop()
+        self._preview_job = self.after(self.PREVIEW_MS, self._preview_loop)
+
+    def _cancel_preview_loop(self):
+        if self._preview_job:
+            try:
+                self.after_cancel(self._preview_job)
+            except Exception:
+                pass
+            self._preview_job = None
+
+    def _preview_loop(self):
+        try:
+            self._update_shared_preview()
+        except Exception as e:
+            print(f"[KIT] Preview update failed: {e}", flush=True)
+        finally:
+            self._preview_job = self.after(self.PREVIEW_MS, self._preview_loop)
+
+    def _get_frame_from_worker(self):
+        if get_latest_queue_frame is None:
+            return None, None
+
+        payload = get_latest_queue_frame()
+
+        if payload is None:
+            return None, None
+
+        if isinstance(payload, dict):
+            return payload.get("frame"), payload
+
+        return payload, {"frame": payload}
+
+    def _update_shared_preview(self):
+        frame, meta = self._get_frame_from_worker()
+
+        if frame is None:
+            if _KIT_QUEUE_IMPORT_ERROR is not None:
+                self._set_camera_badge("Worker missing", "error")
+                self.camera_label.configure(
+                    image=None,
+                    text=(
+                        "Queue worker preview is not available.\n\n"
+                        "Create backend/util/kit_queue_worker.py\n"
+                        "with get_latest_queue_frame()."
+                    ),
+                )
+            return
+
+        label_w = max(320, self.camera_label.winfo_width())
+        label_h = max(240, self.camera_label.winfo_height())
+
+        if label_w <= 1 or label_h <= 1:
+            return
+
+        try:
+            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            else:
+                rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+
+            h, w = rgb.shape[:2]
+            scale = min(label_w / max(1, w), label_h / max(1, h))
+            new_w = max(1, int(w * scale))
+            new_h = max(1, int(h * scale))
+
+            resized = cv2.resize(rgb, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+            canvas = Image.new("RGB", (label_w, label_h), (0, 0, 0))
+            img = Image.fromarray(resized)
+
+            x = (label_w - new_w) // 2
+            y = (label_h - new_h) // 2
+            canvas.paste(img, (x, y))
+
+            self._camera_imgtk = ImageTk.PhotoImage(canvas)
+            self.camera_label.configure(image=self._camera_imgtk, text="")
+
+            state = str((meta or {}).get("state") or "live").strip().lower()
+            message = str((meta or {}).get("message") or "").strip()
+
+            if state in ("processing", "capturing", "analyzing", "disposing", "uploading"):
+                self._set_camera_badge("Processing", "warning")
+            elif state in ("result_ready", "completed", "disposed"):
+                self._set_camera_badge("Done", "success")
+            elif state in ("error", "camera_error", "worker_error"):
+                self._set_camera_badge("Camera error", "error")
+            else:
+                self._set_camera_badge("Ready", "success")
+
+            # Do not add extra UI annotations here. The frame from the worker is already clean.
+            if state in ("result_ready", "completed") and message:
+                print(f"[KIT] Worker status: {message}", flush=True)
+
+        except Exception as e:
+            print(f"[KIT] Failed to render shared preview: {e}", flush=True)
+
+    # ------------------------------------------------------------------
+    # UI state helpers
+    # ------------------------------------------------------------------
+
+    def _set_camera_badge(self, text, color="neutral"):
+        if color == "success":
+            bg = "#EAF7EF"
+            fg = SUCCESS
+        elif color == "warning":
+            bg = "#FFF7E0"
+            fg = "#9A6700"
+        elif color == "error":
+            bg = "#FFECEC"
+            fg = ERROR
+        elif color == "dark":
+            bg = "#2D2D2D"
+            fg = WHITE
+        else:
+            bg = "#EEF4FF"
+            fg = INFO
+
+        safe_configure(self.camera_badge_frame, fg_color=bg)
+        self.camera_badge.configure(text=text, text_color=fg)
+
+    def _set_status(self, result_text=None, confirm_text=None, result_color=None, confirm_color=None):
+        if confirm_text is not None:
+            clean_confirm = str(confirm_text or "").strip()
+
+            if clean_confirm:
+                self.confirmation_label.configure(
+                    text=clean_confirm,
+                    text_color=confirm_color or SUCCESS,
+                )
+                self.confirmation_label.grid(
+                    row=0,
+                    column=0,
+                    sticky="ew",
+                    padx=20,
+                    pady=(14, 2),
+                )
+                self.result_label.grid_configure(row=1, pady=(0, 14))
+            else:
+                self.confirmation_label.configure(text="")
+                self.confirmation_label.grid_remove()
+                self.result_label.grid_configure(row=0, pady=18)
+
+        if result_text is not None:
+            self.result_label.configure(text=result_text, text_color=result_color or BLACK)
+
+    def _sync_layout(self, event=None):
+        try:
+            self.update_idletasks()
+
+            available_w = max(1000, self.main_wrap.winfo_width())
+            available_h = max(520, self.main_wrap.winfo_height())
+
+            card_w = min(1400, max(1080, int(available_w * 0.99)))
+            card_h = min(760, max(600, int(available_h * 0.99)))
+
+            self.card.configure(width=card_w, height=card_h)
+
+            left_wrap = max(500, self.left_panel.winfo_width() - 36)
+            right_wrap = max(320, self.right_panel.winfo_width() - 26)
+
+            badge_w = max(96, self.camera_badge_frame.winfo_width())
+            header_w = max(400, self.camera_header.winfo_width())
+            camera_hint_wrap = max(300, header_w - badge_w - 36)
+
+            self.camera_hint.configure(wraplength=camera_hint_wrap)
+            self.camera_label.configure(wraplength=max(420, left_wrap - 40))
+            self.result_label.configure(wraplength=left_wrap)
+            self.confirmation_label.configure(wraplength=left_wrap)
+
+            info_wrap = max(280, self.info_card.winfo_width() - 44)
+            self.info_title.configure(wraplength=info_wrap)
+            self.info_desc.configure(wraplength=info_wrap)
+            self.action_note.configure(wraplength=max(280, self.action_card.winfo_width() - 18))
+
+            for card, title_label, desc_label in zip(
+                self._step_cards, self._step_title_labels, self._step_desc_labels
+            ):
+                card_w = max(280, card.winfo_width())
+                usable_text_w = max(220, card_w - 92)
+                title_label.configure(wraplength=usable_text_w)
+                desc_label.configure(wraplength=usable_text_w)
+
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Config refresh
+    # ------------------------------------------------------------------
 
     def _refresh_from_config(self):
         try:
@@ -118,16 +734,44 @@ class KitInsertionPage(ctk.CTkFrame):
                 text=config.get(
                     "kit_insertion_page",
                     "title",
-                    default="REVERSE VENDING MACHINE"
+                    default="REVERSE VENDING MACHINE",
                 )
             )
+
             self.insert_btn.configure(
                 text=config.get(
                     "kit_insertion_page",
                     "confirm_button_text",
-                    default="Confirm Insertion"
+                    default="Confirm Insertion",
                 )
             )
+
+            delay_text = self._queue_delay_text()
+
+            self.camera_hint.configure(
+                text=(
+                    "This is the queue worker camera view. "
+                    f"Your timer starts when you confirm insertion. Processing happens after about {delay_text}."
+                )
+            )
+
+            self.action_note.configure(
+                text=f"The {delay_text} timer starts when you confirm insertion."
+            )
+
+            try:
+                self.shell.set_header_right(
+                    config.get(
+                        "kit_insertion_page",
+                        "header_title",
+                        default="Reverse Vending Machine",
+                    )
+                    if not self.user_data
+                    else f"Welcome, {self.user_data.get('username', 'User')}!"
+                )
+            except Exception:
+                pass
+
         except Exception as e:
             print(f"[KIT] Config refresh failed: {e}", flush=True)
 
@@ -135,293 +779,171 @@ class KitInsertionPage(ctk.CTkFrame):
         self._refresh_from_config()
         self._config_refresh_job = self.after(self.REFRESH_MS, self._start_config_refresh)
 
-    def start_camera(self):
-        try:
-            camera_index = int(config.get("kit_insertion_page", "camera_index", default=0))
-            frame_width = int(config.get("kit_insertion_page", "frame_width", default=1280))
-            frame_height = int(config.get("kit_insertion_page", "frame_height", default=720))
-
-            if self.cap is None:
-                self.cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_width)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_height)
-
-            if not self.cap.isOpened():
-                msg = config.get(
-                    "kit_insertion_page",
-                    "camera_unavailable_text",
-                    default="Camera not available"
-                )
-                self.result_label.configure(text=msg)
-                if hasattr(self.controller, "show_error"):
-                    self.controller.show_error(msg, title="Camera Error")
-                return
-
-            self.running = True
-            self.update_frame()
-
-        except Exception as e:
-            print(f"[KIT] start_camera failed: {e}", flush=True)
-            self.result_label.configure(text="Camera failed to start")
-            if hasattr(self.controller, "show_error"):
-                self.controller.show_error(
-                    f"Unable to start the camera.\n{e}",
-                    title="Camera Error"
-                )
-
-    def stop_camera(self):
-        self.running = False
-
-        if self._after_id:
+    def _cancel_config_refresh(self):
+        if self._config_refresh_job:
             try:
-                self.after_cancel(self._after_id)
+                self.after_cancel(self._config_refresh_job)
             except Exception:
                 pass
-            self._after_id = None
+            self._config_refresh_job = None
 
-        if self.cap:
-            try:
-                self.cap.release()
-            except Exception:
-                pass
-            self.cap = None
+    # ------------------------------------------------------------------
+    # Queue action
+    # ------------------------------------------------------------------
 
-    def update_frame(self):
-        if self.running and self.cap:
-            ret, frame = self.cap.read()
-            if ret:
-                preview_w = int(config.get("kit_insertion_page", "preview_width", default=960))
-                preview_h = int(config.get("kit_insertion_page", "preview_height", default=540))
+    def _get_user_id(self):
+        return (
+            self.user_data.get("user_id")
+            or self.user_data.get("userID")
+            or self.user_data.get("_id")
+            or self.user_data.get("id")
+            or ""
+        )
 
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(frame_rgb).resize((preview_w, preview_h))
-                imgtk = ImageTk.PhotoImage(image=img)
-                self.camera_label.configure(image=imgtk)
-                self._camera_imgtk = imgtk
+    def _get_product_id(self):
+        if not self.selected_product:
+            return ""
 
-            self._after_id = self.after(
-                int(config.get("kit_insertion_page", "frame_refresh_ms", default=30)),
-                self.update_frame
-            )
+        return (
+            self.selected_product.get("productID")
+            or self.selected_product.get("product_id")
+            or self.selected_product.get("_id")
+            or self.selected_product.get("id")
+            or ""
+        )
 
-    def capture_image(self, run_yolo=True):
+    def _get_product_name(self):
+        if not self.selected_product:
+            return ""
+
+        return (
+            self.selected_product.get("name")
+            or self.selected_product.get("product_name")
+            or self.selected_product.get("productName")
+            or ""
+        )
+
+    def _get_transaction_id(self):
+        return (
+            self.transaction_id
+            or self.user_data.get("transaction_id")
+            or self.user_data.get("transactionID")
+            or self.user_data.get("latest_transaction_id")
+            or self.user_data.get("latestTransactionId")
+            or ""
+        )
+
+    def confirm_insertion(self):
         try:
-            if not self.cap or not self.cap.isOpened():
-                msg = config.get(
-                    "kit_insertion_page",
-                    "camera_unavailable_text",
-                    default="Camera not available"
-                )
-                self.result_label.configure(text=msg)
-                if hasattr(self.controller, "show_error"):
-                    self.controller.show_error(msg, title="Camera Error")
+            if self._busy:
                 return
 
-            ret, frame = self.cap.read()
-            if not ret:
-                msg = config.get(
-                    "kit_insertion_page",
-                    "capture_failed_text",
-                    default="Failed to capture image"
+            if enqueue_kit_job is None:
+                raise RuntimeError(
+                    "Kit queue worker is not available. "
+                    f"Import error: {_KIT_QUEUE_IMPORT_ERROR}"
                 )
-                self.result_label.configure(text=msg)
-                if hasattr(self.controller, "show_error"):
-                    self.controller.show_error(msg, title="Capture Error")
-                return
 
+            self._busy = True
             self.insert_btn.configure(state="disabled")
-            self.running = False
+            self._set_camera_badge("Queueing", "warning")
 
-            if self._after_id:
-                try:
-                    self.after_cancel(self._after_id)
-                except Exception:
-                    pass
-                self._after_id = None
-
-            preview_w = int(config.get("kit_insertion_page", "preview_width", default=960))
-            preview_h = int(config.get("kit_insertion_page", "preview_height", default=540))
-
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame_rgb).resize((preview_w, preview_h))
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.camera_label.configure(image=imgtk)
-            self._camera_imgtk = imgtk
-            self.confirmation_label.configure(
-                text=config.get(
-                    "kit_insertion_page",
-                    "photo_captured_text",
-                    default="Photo captured successfully!"
-                )
-            )
-            self._captured_frame = frame
-
-            if run_yolo:
-                self.after(
-                    int(config.get("kit_insertion_page", "analysis_delay_ms", default=600)),
-                    self.generate_result
-                )
-            else:
-                self.result_label.configure(
-                    text=config.get(
-                        "kit_insertion_page",
-                        "bill_captured_text",
-                        default="Bill captured"
-                    )
-                )
-                self.insert_btn.configure(state="normal")
-
-        except Exception as e:
-            print(f"[KIT] capture_image failed: {e}", flush=True)
-            self.insert_btn.configure(state="normal")
-            if hasattr(self.controller, "show_error"):
-                self.controller.show_error(
-                    f"Image capture failed.\n{e}",
-                    title="Capture Error"
-                )
-
-    def generate_result(self):
-        try:
-            if self._captured_frame is None:
-                raise RuntimeError("No captured frame available.")
-
-            raw_frame = self._captured_frame.copy()
-            frame_resized = cv2.resize(raw_frame, (1280, 720))
-            annotated_frame = frame_resized.copy()
-            result_text = config.get(
-                "kit_insertion_page",
-                "no_object_text",
-                default="No object detected"
+            self._set_status(
+                confirm_text="Checking transaction details...",
+                result_text="Please wait while we queue your kit.",
+                confirm_color=INFO,
+                result_color=INFO,
             )
 
-            try:
-                conf = float(config.get("kit_insertion_page", "yolo_confidence", default=0.3))
-                results = self.model.predict(source=frame_resized, conf=conf, verbose=False)
-                if results and len(results[0].boxes) > 0:
-                    class_indices = results[0].boxes.cls.cpu().numpy().astype(int)
-                    class_names = [results[0].names[i] for i in class_indices]
-                    result_text = ", ".join(class_names)
-                    annotated_frame = results[0].plot()
-            except Exception as e:
-                print("Analysis failed:", e, flush=True)
-                result_text = config.get("kit_insertion_page", "invalid_text", default="Invalid")
+            user_id = str(self._get_user_id()).strip()
+            username = str(self.user_data.get("username") or self.user_data.get("name") or "user").strip()
+            product_id = str(self._get_product_id()).strip()
+            product_name = str(self._get_product_name()).strip()
+            transaction_id = str(self._get_transaction_id()).strip()
 
-            preview_w = int(config.get("kit_insertion_page", "preview_width", default=960))
-            preview_h = int(config.get("kit_insertion_page", "preview_height", default=540))
+            missing = []
+            if not user_id:
+                missing.append("user_id")
+            if not product_id:
+                missing.append("product_id")
+            if not transaction_id:
+                missing.append("transaction_id")
 
-            display_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(display_rgb).resize((preview_w, preview_h))
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.camera_label.configure(image=imgtk)
-            self._camera_imgtk = imgtk
-            self.result_label.configure(
-                text=f"{config.get('kit_insertion_page', 'result_prefix', default='Result')}: {result_text}"
-            )
-
-            user_id = self.user_data.get("user_id") or self.user_data.get("userID") or self.user_data.get("_id") or "unknown"
-            product_id = (
-                self.selected_product.get("productID") or self.selected_product.get("product_id")
-            ) if self.selected_product else None
+            if missing:
+                raise RuntimeError(
+                    "Missing required queue data: "
+                    + ", ".join(missing)
+                    + f". user_id={user_id}, product_id={product_id}, transaction_id={transaction_id}"
+                )
 
             session_dir = get_or_create_capture_session(user_id)
 
-            metadata = {
-                "user_id": user_id,
-                "username": self.user_data.get("username", "user"),
-                "product_id": product_id,
-                "transaction_id": self.transaction_id,
-                "result": result_text,
-            }
-
-            raw_path, annotated_path, _ = save_capture_set(
-                session_dir,
-                raw_frame,
-                annotated_frame,
-                metadata
+            job = enqueue_kit_job(
+                user_id=user_id,
+                username=username,
+                product_id=product_id,
+                product_name=product_name,
+                transaction_id=transaction_id,
+                session_dir=str(session_dir),
             )
 
-            print(f"[KIT] session_dir={session_dir}", flush=True)
-            print(f"[KIT] raw_path={raw_path}", flush=True)
-            print(f"[KIT] annotated_path={annotated_path}", flush=True)
-            print(f"[KIT] annotated_exists={Path(annotated_path).exists()}", flush=True)
-            print(f"[KIT] transaction_id={self.transaction_id}", flush=True)
+            delay_text = self._queue_delay_text()
 
-            threading.Thread(
-                target=self.send_to_backend,
-                args=(str(session_dir), result_text),
-                daemon=True
-            ).start()
+            self._set_camera_badge("Queued", "success")
+            self._set_status(
+                confirm_text="Kit accepted. You may now leave the booth.",
+                result_text=f"Your result will appear on the website after about {delay_text}.",
+                confirm_color=SUCCESS,
+                result_color=SUCCESS,
+            )
+
+            print(f"[KIT] Queued kit job: {job}", flush=True)
 
             self.after(
-                int(config.get("kit_insertion_page", "logout_delay_ms", default=5000)),
-                self.logout_user
+                int(config.get("kit_insertion_page", "logout_delay_ms", default=3000)),
+                self.logout_user,
             )
 
         except Exception as e:
-            print(f"[KIT] generate_result failed: {e}", flush=True)
+            print(f"[KIT] confirm_insertion failed: {e}", flush=True)
+
+            self._busy = False
             self.insert_btn.configure(state="normal")
+            self._set_camera_badge("Queue error", "error")
+
+            self._set_status(
+                confirm_text="",
+                result_text="Failed to queue inserted kit.",
+                result_color=ERROR,
+            )
+
             if hasattr(self.controller, "show_error"):
                 self.controller.show_error(
-                    f"Kit analysis failed.\n{e}",
-                    title="Analysis Error"
+                    f"Failed to queue inserted kit.\n{e}",
+                    title="Queue Error",
                 )
 
-    def send_to_backend(self, session_dir, result_text):
-        try:
-            user_id = (
-                self.user_data.get("user_id")
-                or self.user_data.get("userID")
-                or self.user_data.get("_id")
-            )
+    # Backward compatible name.
+    def capture_image(self, run_yolo=True):
+        self.confirm_insertion()
 
-            product_id = (
-                self.selected_product.get("productID")
-                or self.selected_product.get("product_id")
-            ) if self.selected_product else None
+    # ------------------------------------------------------------------
+    # Camera compatibility methods
+    # ------------------------------------------------------------------
 
-            transaction_id = self.transaction_id
+    def start_camera(self):
+        self._set_camera_badge("Ready", "success")
+        self._start_preview_loop()
 
-            if not user_id or not product_id or not transaction_id:
-                print(
-                    f"[KIT] Skipping backend upload: user_id={user_id}, product_id={product_id}, transaction_id={transaction_id}",
-                    flush=True,
-                )
-                return
+    def stop_camera(self):
+        # Do not stop the real camera here. The queue worker owns it.
+        self._set_camera_badge("Stopped", "neutral")
 
-            session_dir = Path(session_dir)
-            timestamp = get_session_timestamp(session_dir)
-
-            payload = {
-                "user_id": user_id,
-                "productID": product_id,
-                "result": result_text,
-                "transaction_id": transaction_id,
-            }
-
-            try:
-                result_res = api_client.post_result(payload)
-                print(f"[KIT] Result JSON upload status: {result_res.status_code}", flush=True)
-            except Exception as e:
-                print(f"[KIT] Result JSON upload failed: {e}", flush=True)
-
-            try:
-                batch_res = api_client.upload_session_images(
-                    user_id=user_id,
-                    timestamp=timestamp,
-                    session_dir=session_dir,
-                    product_id=product_id,
-                    transaction_id=transaction_id,
-                )
-                print(f"[KIT] Session image upload results: {batch_res}", flush=True)
-            except Exception as e:
-                print(f"[KIT] Session image upload failed: {e}", flush=True)
-
-        except Exception as e:
-            print(f"[KIT] send_to_backend encountered an error: {e}", flush=True)
+    # ------------------------------------------------------------------
+    # Page flow
+    # ------------------------------------------------------------------
 
     def update_data(self, user_data=None, selected_product=None, product=None, transaction_id=None, **kwargs):
-        self.stop_camera()
-
         self.user_data = user_data or {}
         self.selected_product = selected_product or product
 
@@ -437,35 +959,48 @@ class KitInsertionPage(ctk.CTkFrame):
             self.user_data["transaction_id"] = self.transaction_id
             self.user_data["latest_transaction_id"] = self.transaction_id
 
-        self.shell.set_header_right(f"Welcome, {self.user_data.get('username', 'User')}!")
-        self.result_label.configure(
-            text=config.get(
+        try:
+            self.shell.set_header_right(f"Welcome, {self.user_data.get('username', 'User')}!")
+        except Exception:
+            pass
+
+        self._busy = False
+        self._camera_imgtk = None
+
+        self._set_status(
+            result_text=config.get(
                 "kit_insertion_page",
                 "initial_text",
-                default="Insert your test kit"
-            )
+                default="Insert your test kit",
+            ),
+            confirm_text="",
+            result_color=BLACK,
         )
-        self.confirmation_label.configure(text=" ")
-        self.insert_btn.configure(state="normal")
-        self._captured_frame = None
 
+        self._set_camera_badge("Ready", "success")
+        self.insert_btn.configure(state="normal")
         self.start_camera()
 
     def logout_user(self):
         self.stop_camera()
+
         self.user_data = {}
         self.selected_product = None
         self.transaction_id = None
-        self._captured_frame = None
+        self._busy = False
+        self._camera_imgtk = None
 
-        self.result_label.configure(
-            text=config.get(
+        self._set_status(
+            result_text=config.get(
                 "kit_insertion_page",
                 "initial_text",
-                default="Insert your test kit"
-            )
+                default="Insert your test kit",
+            ),
+            confirm_text="",
+            result_color=BLACK,
         )
-        self.confirmation_label.configure(text=" ")
+
+        self._set_camera_badge("Stopped", "neutral")
         self.insert_btn.configure(state="normal")
 
         for page_name in ["QRLoginPage", "PurchasePage", "CashPaymentPage", "HowToUsePage"]:
@@ -479,5 +1014,11 @@ class KitInsertionPage(ctk.CTkFrame):
         self.controller.show_loading_then(
             config.get("kit_insertion_page", "logout_loading_text", default="Logging Out..."),
             "WelcomePage",
-            delay=1000
+            delay=1000,
         )
+
+    def destroy(self):
+        self._cancel_config_refresh()
+        self._cancel_preview_loop()
+        self.stop_camera()
+        super().destroy()

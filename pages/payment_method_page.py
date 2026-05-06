@@ -16,10 +16,12 @@ class PaymentMethodPage(ctk.CTkFrame):
 
     def __init__(self, master, controller):
         super().__init__(master, fg_color=theme.CREAM)
+
         self.controller = controller
         self.user_data = {}
         self.selected_product = None
         self.discount = 0
+        self.transaction_id = None
         self.logo_refs = []
         self._config_refresh_job = None
 
@@ -130,6 +132,10 @@ class PaymentMethodPage(ctk.CTkFrame):
 
         self._start_config_refresh()
 
+    # ------------------------------------------------------------------
+    # Image helpers
+    # ------------------------------------------------------------------
+
     def _load_logo_image(self, path, size):
         try:
             img = Image.open(path).convert("RGBA")
@@ -143,14 +149,15 @@ class PaymentMethodPage(ctk.CTkFrame):
             tk_img = ImageTk.PhotoImage(canvas)
             self.logo_refs.append(tk_img)
             return tk_img
+
         except Exception as e:
             print(f"[PAYMENT METHOD] Failed to load logo {path}: {e}", flush=True)
             return None
 
     def _bind_click_recursive(self, widgets, command):
-        for w in widgets:
+        for widget in widgets:
             try:
-                w.bind("<Button-1>", lambda e, cmd=command: cmd())
+                widget.bind("<Button-1>", lambda event, cmd=command: cmd())
             except Exception:
                 pass
 
@@ -168,7 +175,6 @@ class PaymentMethodPage(ctk.CTkFrame):
         content.pack(fill="both", expand=True, padx=12, pady=8)
         content.pack_propagate(False)
 
-        # balanced vertical layout for both tiles
         content.grid_columnconfigure(0, weight=1)
         content.grid_rowconfigure(0, weight=1)
         content.grid_rowconfigure(1, weight=0)
@@ -209,33 +215,126 @@ class PaymentMethodPage(ctk.CTkFrame):
                 if tk_img is None:
                     continue
 
-                lbl = ctk.CTkLabel(
+                label = ctk.CTkLabel(
                     logo_container,
                     image=tk_img,
                     text="",
                     fg_color=theme.WHITE
                 )
-                lbl.pack(side="left", padx=18)
-                logo_widgets.append(lbl)
+                label.pack(side="left", padx=18)
+                logo_widgets.append(label)
         else:
             spacer = ctk.CTkFrame(content, fg_color=theme.WHITE, height=18)
             spacer.grid(row=3, column=0)
             logo_widgets.append(spacer)
 
         widgets_to_bind = [tile, body, content, title_label, subtitle_label]
+
         if hasattr(tile, "canvas"):
             widgets_to_bind.append(tile.canvas)
+
         if logo_container is not None:
             widgets_to_bind.append(logo_container)
-        widgets_to_bind.extend(logo_widgets)
 
+        widgets_to_bind.extend(logo_widgets)
         self._bind_click_recursive(widgets_to_bind, command)
 
         tile._title_label = title_label
         tile._subtitle_label = subtitle_label
         tile._logo_container = logo_container
         tile._logo_widgets = logo_widgets
+
         return tile
+
+    # ------------------------------------------------------------------
+    # Data helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_user_data(self, user_data=None, kwargs=None):
+        kwargs = kwargs or {}
+
+        resolved = (
+            user_data
+            or kwargs.get("user_data")
+            or kwargs.get("user")
+            or kwargs.get("current_user")
+            or {}
+        )
+
+        if not isinstance(resolved, dict):
+            return {}
+
+        return resolved.copy()
+
+    def _resolve_product(self, selected_product=None, product=None, selected_item=None, kwargs=None):
+        kwargs = kwargs or {}
+
+        resolved = (
+            selected_product
+            or product
+            or selected_item
+            or kwargs.get("selected_product")
+            or kwargs.get("product")
+            or kwargs.get("selected_item")
+            or kwargs.get("item")
+            or kwargs.get("kit")
+            or {}
+        )
+
+        if not isinstance(resolved, dict):
+            return None
+
+        return resolved.copy()
+
+    def _resolve_transaction_id(self, transaction_id=None, product=None, kwargs=None):
+        kwargs = kwargs or {}
+        product = product or {}
+
+        resolved = (
+            transaction_id
+            or kwargs.get("transaction_id")
+            or kwargs.get("transactionID")
+            or kwargs.get("transactionId")
+            or product.get("transaction_id")
+            or product.get("transactionID")
+            or product.get("transactionId")
+            or product.get("selection_id")
+        )
+
+        return str(resolved) if resolved else None
+
+    def _attach_transaction_to_product(self):
+        if not isinstance(self.selected_product, dict):
+            return
+
+        if not self.transaction_id:
+            self.transaction_id = self._resolve_transaction_id(product=self.selected_product)
+
+        if self.transaction_id:
+            self.selected_product["transaction_id"] = self.transaction_id
+            self.selected_product["transactionID"] = self.transaction_id
+            self.selected_product["transactionId"] = self.transaction_id
+            self.selected_product["selection_id"] = self.transaction_id
+
+        if isinstance(self.user_data, dict) and self.transaction_id:
+            self.user_data["transaction_id"] = self.transaction_id
+            self.user_data["latest_transaction_id"] = self.transaction_id
+
+    def _page_payload(self):
+        product = self.selected_product.copy() if isinstance(self.selected_product, dict) else None
+
+        return {
+            "user_data": self.user_data,
+            "product": product,
+            "selected_product": product,
+            "selected_item": product,
+            "discount": self.discount,
+            "transaction_id": self.transaction_id,
+        }
+
+    # ------------------------------------------------------------------
+    # Config refresh
+    # ------------------------------------------------------------------
 
     def _refresh_from_config(self):
         try:
@@ -282,14 +381,82 @@ class PaymentMethodPage(ctk.CTkFrame):
         self._refresh_from_config()
         self._config_refresh_job = self.after(self.REFRESH_MS, self._start_config_refresh)
 
-    def update_data(self, user_data=None, selected_product=None, discount=0, **kwargs):
-        self.user_data = user_data or {}
-        self.selected_product = selected_product
-        self.discount = discount or 0
-        self.shell.set_header_right(f"Welcome, {self.user_data.get('username', 'User')}!")
-        self.status_label.configure(text="", text_color=theme.MUTED)
+    # ------------------------------------------------------------------
+    # Page data entry
+    # ------------------------------------------------------------------
+
+    def update_data(
+        self,
+        user_data=None,
+        selected_product=None,
+        product=None,
+        selected_item=None,
+        discount=0,
+        transaction_id=None,
+        **kwargs
+    ):
+        self.user_data = self._resolve_user_data(user_data, kwargs)
+
+        self.selected_product = self._resolve_product(
+            selected_product=selected_product,
+            product=product,
+            selected_item=selected_item,
+            kwargs=kwargs
+        )
+
+        self.discount = discount if discount is not None else kwargs.get("discount", 0)
+        self.discount = self.discount or 0
+
+        self.transaction_id = self._resolve_transaction_id(
+            transaction_id=transaction_id,
+            product=self.selected_product,
+            kwargs=kwargs
+        )
+
+        self._attach_transaction_to_product()
+
+        username = self.user_data.get("username", "User")
+        self.shell.set_header_right(f"Welcome, {username}!")
+
+        if not self.selected_product:
+            self.status_label.configure(
+                text="No selected product was received. Please go back and select a product again.",
+                text_color=theme.ERROR
+            )
+        else:
+            product_name = (
+                self.selected_product.get("name")
+                or self.selected_product.get("product_name")
+                or self.selected_product.get("type")
+                or "selected product"
+            )
+
+            print(
+                f"[PAYMENT METHOD] Loaded product={product_name} transaction_id={self.transaction_id}",
+                flush=True
+            )
+
+            self.status_label.configure(text="", text_color=theme.MUTED)
+
+        try:
+            if hasattr(self.controller, "current_user"):
+                self.controller.current_user = self.user_data
+
+            if hasattr(self.controller, "selected_product") and self.selected_product:
+                self.controller.selected_product = self.selected_product
+
+            if hasattr(self.controller, "current_transaction_id") and self.transaction_id:
+                self.controller.current_transaction_id = self.transaction_id
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Navigation
+    # ------------------------------------------------------------------
 
     def go_back(self):
+        payload = self._page_payload()
+
         self.controller.show_loading_then(
             config.get(
                 "payment_method_page",
@@ -298,13 +465,25 @@ class PaymentMethodPage(ctk.CTkFrame):
             ),
             "PurchasePage",
             delay=1000,
-            user_data=self.user_data,
-            selected_product=self.selected_product,
-            discount=self.discount
+            **payload
         )
 
     def proceed_payment(self, method):
         self.status_label.configure(text="", text_color=theme.MUTED)
+
+        if not self.user_data or not self.selected_product:
+            self.status_label.configure(
+                text="Missing product details. Please go back and select a product again.",
+                text_color=theme.ERROR
+            )
+            print(
+                f"[PAYMENT METHOD] Blocked payment. user_data={self.user_data} selected_product={self.selected_product}",
+                flush=True
+            )
+            return
+
+        self._attach_transaction_to_product()
+        payload = self._page_payload()
 
         if method == "cash":
             self.controller.show_loading_then(
@@ -315,9 +494,7 @@ class PaymentMethodPage(ctk.CTkFrame):
                 ),
                 "CashBillCheckPage",
                 delay=1000,
-                user_data=self.user_data,
-                selected_product=self.selected_product,
-                discount=self.discount
+                **payload
             )
             return
 
@@ -329,7 +506,23 @@ class PaymentMethodPage(ctk.CTkFrame):
             ),
             "OnlinePaymentPage",
             delay=1000,
-            user_data=self.user_data,
-            selected_product=self.selected_product,
-            discount=self.discount
+            **payload
         )
+
+    def reset_fields(self, **kwargs):
+        self.user_data = {}
+        self.selected_product = None
+        self.discount = 0
+        self.transaction_id = None
+        self.shell.set_header_right("Welcome, User!")
+        self.status_label.configure(text="", text_color=theme.MUTED)
+
+    def destroy(self):
+        if self._config_refresh_job is not None:
+            try:
+                self.after_cancel(self._config_refresh_job)
+            except Exception:
+                pass
+            self._config_refresh_job = None
+
+        super().destroy()
