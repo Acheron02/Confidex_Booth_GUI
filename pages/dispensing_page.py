@@ -4,7 +4,10 @@ import tkinter as tk
 from frontend import tk_compat as ctk
 from frontend import theme
 from frontend.widgets import AppShell, RoundedCard, card_body
-from backend.util.dispenser_serial import send_dispense_command
+from backend.util.dispenser_serial import (
+    send_dispense_command,
+    send_return_kit_home_command,
+)
 from config_manager import config
 from backend.device_sync import mark_inventory_dirty, push_inventory_if_dirty
 
@@ -767,6 +770,13 @@ class DispensingPage(ctk.CTkFrame):
         self.total_paid = total_paid or 0
         self.change = change or 0
         self.total = total or 0
+        self.payment_session_id = kwargs.get("payment_session_id")
+        self.payment_reference = kwargs.get("payment_reference")
+        self.payment_method = kwargs.get("payment_method")
+        self.online_payment = bool(kwargs.get("online_payment", False))
+        self.payment_amount = kwargs.get("payment_amount", 0)
+        self.payment_mode = kwargs.get("payment_mode")
+        self.simulated = kwargs.get("simulated", False)
 
         self.transaction_id = (
             transaction_id
@@ -854,24 +864,198 @@ class DispensingPage(ctk.CTkFrame):
         self.processing = True
         threading.Thread(target=self._dispense_item_thread, daemon=True).start()
 
-    def _dispense_item_thread(self):
+    def _get_product_id(self):
+        return (
+            self.product.get("productID")
+            or self.product.get("product_id")
+            or self.product.get("id")
+            or ""
+        )
+
+    def _get_product_name(self):
+        return (
+            self.product.get("name")
+            or self.product.get("type")
+            or "Unknown Item"
+        )
+
+    def _extract_stock_value(self, item):
+        if not isinstance(item, dict):
+            return None
+
+        for key in ("stock", "quantity", "available_stock", "remaining_stock"):
+            if key not in item:
+                continue
+
+            try:
+                return int(float(item.get(key)))
+            except Exception:
+                continue
+
+        return None
+
+    def _read_latest_stock_before_dispense(self, product_id):
+        """
+        Reads stock BEFORE dispensing.
+
+        If this returns 1, the current dispense is the last kit in the lane,
+        so Arduino must be asked to return that lane home after DISPENSED.
+        """
+        product_id = str(product_id or "").strip()
+
+        if not product_id:
+            return None
+
+        # Prefer the latest config/inventory value over self.product because
+        # self.product can be a stale copy passed from the purchase page.
         try:
-            product_id = (
-                self.product.get("productID")
-                or self.product.get("product_id")
-                or self.product.get("id")
-                or ""
+            if hasattr(config, "get_product_by_id"):
+                latest_product = config.get_product_by_id(product_id)
+                stock = self._extract_stock_value(latest_product)
+
+                if stock is not None:
+                    return stock
+        except Exception as e:
+            print(f"[DISPENSING] Could not read latest product stock: {e}", flush=True)
+
+        # Fallback to the product object carried by the page.
+        stock = self._extract_stock_value(self.product)
+
+        if stock is not None:
+            return stock
+
+        return None
+
+    def _stock_after_decrement(self, updated_product, product_id):
+        stock = self._extract_stock_value(updated_product)
+
+        if stock is not None:
+            return stock
+
+        try:
+            if hasattr(config, "get_product_by_id"):
+                latest_product = config.get_product_by_id(str(product_id or ""))
+                return self._extract_stock_value(latest_product)
+        except Exception:
+            pass
+
+        return None
+
+    def _should_return_home_after_dispense(self, product_id):
+        stock_before = self._read_latest_stock_before_dispense(product_id)
+
+        if stock_before is None:
+            print(
+                f"[DISPENSING] Stock value unavailable for product_id={product_id}; "
+                "will use post-decrement fallback for return-home.",
+                flush=True,
+            )
+            return False
+
+        should_return = stock_before <= 1
+
+        print(
+            f"[DISPENSING] product_id={product_id} stock_before={stock_before} "
+            f"return_home_after={should_return}",
+            flush=True,
+        )
+
+        return should_return
+
+    def _dispense_was_confirmed(self, result):
+        if not isinstance(result, dict):
+            return False
+
+        if result.get("actual_kit") in {"KIT1", "KIT2", "KIT3"}:
+            return True
+
+        for line in result.get("replies") or []:
+            if str(line or "").strip().upper().startswith("DISPENSED:"):
+                return True
+
+        return False
+
+    def _run_return_home_fallback(self, kit_code):
+        kit_code = str(kit_code or "").strip().upper()
+
+        if kit_code not in {"KIT1", "KIT2"}:
+            print(f"[DISPENSING] Cannot run return-home fallback for kit_code={kit_code}", flush=True)
+            return
+
+        print(f"[DISPENSING] Running fallback return-home for {kit_code}", flush=True)
+
+        try:
+            result = send_return_kit_home_command(kit_code)
+            print(f"[DISPENSING] Fallback return-home result for {kit_code}: {result}", flush=True)
+
+            if not result.get("success") and hasattr(self.controller, "show_error"):
+                self.after(
+                    0,
+                    lambda: self.controller.show_error(
+                        (
+                            f"The last kit was dispensed, but {kit_code} did not confirm return-home. "
+                            "Please call an operator to inspect and home/reset the lane before restocking."
+                        ),
+                        title="Return Home Warning",
+                        action_text="Continue",
+                        on_close=getattr(self.controller, "_close_error_only", None),
+                    ),
+                )
+        except Exception as e:
+            print(f"[DISPENSING] Fallback return-home failed for {kit_code}: {e}", flush=True)
+
+    def _decrement_stock_after_confirmed_dispense(self, product_id):
+        """
+        Decrements local stock after Arduino confirms DISPENSED.
+
+        Returns:
+          stock_after or None
+        """
+        if not product_id:
+            return None
+
+        try:
+            updated = config.decrement_product_stock(str(product_id), 1)
+
+            if updated:
+                stock_after = self._stock_after_decrement(updated, product_id)
+
+                if stock_after is not None and isinstance(self.product, dict):
+                    self.product["stock"] = stock_after
+                    self.product["available"] = stock_after > 0
+
+                mark_inventory_dirty()
+                threading.Thread(target=push_inventory_if_dirty, daemon=True).start()
+
+                print(
+                    f"[DISPENSING] Stock decremented product_id={product_id} "
+                    f"stock_after={stock_after}",
+                    flush=True,
+                )
+
+                return stock_after
+
+            print(
+                f"[DISPENSING] Stock not decremented for product_id={product_id}",
+                flush=True,
             )
 
-            product_name = (
-                self.product.get("name")
-                or self.product.get("type")
-                or "Unknown Item"
-            )
+        except Exception as e:
+            print(f"[DISPENSING] Failed to decrement stock: {e}", flush=True)
+
+        return None
+
+    def _dispense_item_thread(self):
+        try:
+            product_id = self._get_product_id()
+            product_name = self._get_product_name()
+
+            return_home_after = self._should_return_home_after_dispense(product_id)
 
             result = send_dispense_command(
                 product_id=product_id,
-                product_name=product_name
+                product_name=product_name,
+                return_home_after=return_home_after,
             )
 
             self.after(0, lambda: self._on_dispense_done(result))
@@ -879,36 +1063,37 @@ class DispensingPage(ctk.CTkFrame):
         except Exception as e:
             self.after(0, lambda: self._on_dispense_error(str(e)))
 
-    def _on_dispense_done(self, result):
-        self.processing = False
-        self.stop_animation()
+    def _show_success_and_continue(self, return_home_warning=None):
+        if return_home_warning:
+            self._set_state("Completed", ORANGE)
 
-        success = bool(result.get("success"))
-        message = result.get("message", "")
-
-        if success:
-            product_id = (
-                self.product.get("productID")
-                or self.product.get("product_id")
-                or self.product.get("id")
+            self.message_label.configure(
+                text="Item released",
+                text_color=SUCCESS
             )
 
-            if product_id:
-                try:
-                    updated = config.decrement_product_stock(str(product_id), 1)
+            self.short_note_label.configure(text="")
+            self.status_label.configure(text=return_home_warning, text_color=ERROR)
 
-                    if updated:
-                        mark_inventory_dirty()
-                        threading.Thread(target=push_inventory_if_dirty, daemon=True).start()
-                    else:
-                        print(
-                            f"[DISPENSING] Stock not decremented for product_id={product_id}",
-                            flush=True,
-                        )
+            self.dispenser_note_label.configure(
+                text="Item released, but the empty lane needs operator attention.",
+                text_color=ERROR
+            )
 
-                except Exception as e:
-                    print(f"[DISPENSING] Failed to decrement stock: {e}", flush=True)
+            self.info_badge_label.configure(text="ATTENTION")
+            self.info_title.configure(text="Lane needs reset")
+            self.center_title.configure(text="Operator check needed")
+            self.center_note.configure(text="The next screen will still open automatically.")
+            self.bottom_label.configure(text="")
 
+            if hasattr(self.controller, "show_error"):
+                self.controller.show_error(
+                    return_home_warning,
+                    title="Return Home Warning",
+                    action_text="Continue",
+                    on_close=getattr(self.controller, "_close_error_only", None),
+                )
+        else:
             self._set_state("Completed", SUCCESS)
 
             self.message_label.configure(
@@ -934,63 +1119,131 @@ class DispensingPage(ctk.CTkFrame):
             self.center_note.configure(text="Opening the next screen.")
             self.bottom_label.configure(text="")
 
-            self.after(
-                int(config.get("dispensing_page", "next_page_delay_ms", default=1500)),
-                lambda: self.controller.show_loading_then(
-                    config.get(
-                        "dispensing_page",
-                        "next_loading_text",
-                        default="Loading instructions"
-                    ),
-                    "HowToUsePage",
-                    delay=800,
-                    user_data=self.user_data,
-                    selected_product=self.product,
-                    transaction_id=self.transaction_id,
-                )
-            )
-
-        else:
-            error_message = message or config.get(
-                "dispensing_page",
-                "failed_status_text",
-                default="Failed to dispense item."
-            )
-
-            self._set_state("Failed", ERROR)
-
-            self.message_label.configure(
-                text=config.get(
+        self.after(
+            int(config.get("dispensing_page", "next_page_delay_ms", default=1500)),
+            lambda: self.controller.show_loading_then(
+                config.get(
                     "dispensing_page",
-                    "failed_title_text",
-                    default="Dispensing failed"
+                    "next_loading_text",
+                    default="Loading instructions"
                 ),
-                text_color=ERROR
+                "HowToUsePage",
+                delay=800,
+                user_data=self.user_data,
+                selected_product=self.product,
+                transaction_id=self.transaction_id,
+                online_payment=self.online_payment,
+                payment_method=self.payment_method,
+                payment_session_id=self.payment_session_id,
+                payment_reference=self.payment_reference,
+                payment_amount=self.payment_amount,
+                payment_mode=self.payment_mode,
+                simulated=self.simulated,
             )
+        )
 
-            self.short_note_label.configure(text="")
+    def _on_dispense_done(self, result):
+        self.processing = False
+        self.stop_animation()
 
-            self.dispenser_note_label.configure(
-                text="The item was not released.",
-                text_color=ERROR
-            )
+        if not isinstance(result, dict):
+            result = {
+                "success": False,
+                "message": "Invalid dispense result returned by serial layer.",
+                "replies": [],
+            }
 
-            self.status_label.configure(
-                text=error_message,
-                text_color=ERROR
-            )
+        success = bool(result.get("success"))
+        message = result.get("message", "")
 
-            self.info_badge_label.configure(text="ASSISTANCE")
-            self.info_title.configure(text="Dispensing issue")
-            self.center_title.configure(text="Please wait")
-            self.center_note.configure(text="Assistance may be needed.")
-            self.bottom_label.configure(text="")
+        dispensed_confirmed = success or self._dispense_was_confirmed(result)
 
-            if hasattr(self.controller, "show_error"):
-                self.controller.show_error(
-                    f"Dispensing failed.\n{error_message}",
-                    title="Dispensing Error"
+        if dispensed_confirmed:
+            product_id = self._get_product_id()
+            stock_after = self._decrement_stock_after_confirmed_dispense(product_id)
+
+            return_home_after = bool(result.get("return_home_after"))
+            returned_home = bool(result.get("returned_home"))
+            actual_kit = str(result.get("actual_kit") or result.get("expected_kit") or "").strip().upper()
+
+            return_home_warning = None
+
+            # Normal path:
+            # If stock_before was 1, the serial layer should have already sent
+            # RETURN_KIT1_HOME or RETURN_KIT2_HOME after DISPENSED.
+            if return_home_after:
+                print(
+                    "[DISPENSING] Last-stock return-home result: "
+                    f"returned_home={returned_home} result={result.get('return_home_result')}",
+                    flush=True,
                 )
+
+                if not returned_home:
+                    return_home_warning = (
+                        "The item was released, but the empty kit lane did not confirm return-home. "
+                        "Please call an operator to inspect and home/reset the lane before restocking."
+                    )
+
+            # Fallback path:
+            # If stock_before was missing/stale and we only discover after
+            # decrement that stock is now zero, return the lane home now.
+            if (
+                stock_after is not None
+                and stock_after <= 0
+                and not return_home_after
+                and actual_kit in {"KIT1", "KIT2"}
+            ):
+                threading.Thread(
+                    target=self._run_return_home_fallback,
+                    args=(actual_kit,),
+                    daemon=True,
+                ).start()
+
+            self._show_success_and_continue(return_home_warning)
+            return
+
+        error_message = message or config.get(
+            "dispensing_page",
+            "failed_status_text",
+            default="Failed to dispense item."
+        )
+
+        self._set_state("Failed", ERROR)
+
+        self.message_label.configure(
+            text=config.get(
+                "dispensing_page",
+                "failed_title_text",
+                default="Dispensing failed"
+            ),
+            text_color=ERROR
+        )
+
+        self.short_note_label.configure(text="")
+
+        self.dispenser_note_label.configure(
+            text="The item was not released.",
+            text_color=ERROR
+        )
+
+        self.status_label.configure(
+            text=error_message,
+            text_color=ERROR
+        )
+
+        self.info_badge_label.configure(text="ASSISTANCE")
+        self.info_title.configure(text="Dispensing issue")
+        self.center_title.configure(text="Please wait")
+        self.center_note.configure(text="Assistance may be needed.")
+        self.bottom_label.configure(text="")
+
+        if hasattr(self.controller, "show_error"):
+            self.controller.show_error(
+                f"Dispensing failed.\n{error_message}\n\nPlease call an operator. The booth will not retry the actuator automatically.",
+                title="Dispensing Error",
+                action_text=None,
+                on_action=None,
+            )
 
     def _on_dispense_error(self, error_message):
         self.processing = False
@@ -1027,8 +1280,10 @@ class DispensingPage(ctk.CTkFrame):
 
         if hasattr(self.controller, "show_error"):
             self.controller.show_error(
-                f"Dispensing failed.\n{error_message}",
-                title="Dispensing Error"
+                f"Dispensing failed.\n{error_message}\n\nPlease call an operator. The booth will not retry the actuator automatically.",
+                title="Dispensing Error",
+                action_text=None,
+                on_action=None,
             )
 
     # ---------------------------------------------------------------------

@@ -7,6 +7,7 @@ from frontend import tk_compat as ctk
 from frontend import theme
 from frontend.widgets import AppShell, RoundedCard, PillButton, card_body
 from config_manager import config
+from backend.system_events import report_warning
 
 
 # ---------------------------------------------------------------------
@@ -54,8 +55,23 @@ def safe_configure(widget, **kwargs):
 class HowToUsePage(ctk.CTkFrame):
     REFRESH_MS = 1500
     VIDEO_MONITOR_MS = 500
+
     SAFE_MAX_VOLUME = 70
     DEFAULT_AUTOPLAY_VOLUME = 70
+
+    # VLC on Raspberry Pi may expose audio tracks late.
+    # These delayed checks make sure the audio starts with the video
+    # regardless of which test/tutorial video was selected.
+    AUDIO_REAPPLY_DELAYS_MS = (
+        100,
+        250,
+        500,
+        1000,
+        1500,
+        2000,
+        3000,
+        4500,
+    )
 
     def __init__(self, master, controller):
         super().__init__(master, fg_color=CREAM)
@@ -67,16 +83,29 @@ class HowToUsePage(ctk.CTkFrame):
 
         self._config_refresh_job = None
         self._video_monitor_job = None
+        self._video_retry_job = None
         self._redirecting = False
+        self._video_retry_count = 0
+        self._video_fallback_shown = False
+        self.MAX_VIDEO_RETRIES = int(config.get("how_to_use_page", "video_retry_max_attempts", default=3))
+        self.VIDEO_RETRY_DELAY_MS = int(config.get("how_to_use_page", "video_retry_delay_ms", default=3000))
 
-        self.instance = vlc.Instance()
+        self.instance = vlc.Instance(
+            "--no-video-title-show",
+            "--quiet",
+        )
         self.media_player = self.instance.media_player_new()
+
         self.video_loaded = False
         self.current_video_path = None
 
         self.shell = AppShell(
             self,
-            title_right=config.get("how_to_use_page", "header_title", default="Instructions")
+            title_right=config.get(
+                "how_to_use_page",
+                "header_title",
+                default="Instructions"
+            )
         )
         self.shell.pack(fill="both", expand=True)
 
@@ -115,7 +144,11 @@ class HowToUsePage(ctk.CTkFrame):
 
         self.title_label = ctk.CTkLabel(
             self.top_area,
-            text=config.get("how_to_use_page", "title", default="HOW TO USE THE TEST KIT"),
+            text=config.get(
+                "how_to_use_page",
+                "title",
+                default="HOW TO USE THE TEST KIT"
+            ),
             font=app_heavy(34),
             text_color=BLACK,
             fg_color=CREAM,
@@ -521,7 +554,11 @@ class HowToUsePage(ctk.CTkFrame):
     def _refresh_from_config(self):
         try:
             self.title_label.configure(
-                text=config.get("how_to_use_page", "title", default="HOW TO USE THE TEST KIT")
+                text=config.get(
+                    "how_to_use_page",
+                    "title",
+                    default="HOW TO USE THE TEST KIT"
+                )
             )
 
             self.insert_button.configure(
@@ -534,7 +571,11 @@ class HowToUsePage(ctk.CTkFrame):
 
             try:
                 self.shell.set_header_right(
-                    config.get("how_to_use_page", "header_title", default="Instructions")
+                    config.get(
+                        "how_to_use_page",
+                        "header_title",
+                        default="Instructions"
+                    )
                     if not self.user_data
                     else f"Welcome, {self.user_data.get('username', 'User')}!"
                 )
@@ -546,7 +587,10 @@ class HowToUsePage(ctk.CTkFrame):
 
     def _start_config_refresh(self):
         self._refresh_from_config()
-        self._config_refresh_job = self.after(self.REFRESH_MS, self._start_config_refresh)
+        self._config_refresh_job = self.after(
+            self.REFRESH_MS,
+            self._start_config_refresh
+        )
 
     def _cancel_config_refresh(self):
         if self._config_refresh_job:
@@ -554,11 +598,121 @@ class HowToUsePage(ctk.CTkFrame):
                 self.after_cancel(self._config_refresh_job)
             except Exception:
                 pass
+
             self._config_refresh_job = None
 
     # ---------------------------------------------------------------------
     # Video monitor
     # ---------------------------------------------------------------------
+
+    def _cancel_video_retry(self):
+        if self._video_retry_job:
+            try:
+                self.after_cancel(self._video_retry_job)
+            except Exception:
+                pass
+            self._video_retry_job = None
+
+    def _schedule_video_retry(self):
+        self._cancel_video_retry()
+
+        if self._redirecting:
+            return
+
+        self._video_retry_job = self.after(
+            max(1000, int(self.VIDEO_RETRY_DELAY_MS)),
+            self._retry_video_after_error,
+        )
+
+    def _retry_video_after_error(self):
+        self._video_retry_job = None
+        if self._redirecting:
+            return
+
+        self.video_status.configure(
+            text="Retrying instruction video...",
+            text_color=INFO,
+        )
+        self._set_video_badge("Retrying", "warning")
+        self.reset_video()
+        self.after(200, self.show_video)
+
+    def _show_fallback_instructions(self, reason=""):
+        self._video_fallback_shown = True
+        self._cancel_video_retry()
+        self._cancel_video_monitor()
+
+        message = config.get(
+            "how_to_use_page",
+            "video_fallback_text",
+            default=(
+                "The instruction video is temporarily unavailable. "
+                "Please follow the written instructions on this page. "
+                "You may continue to kit insertion when ready."
+            ),
+        )
+        if reason:
+            message = f"{message}\n\nDetails: {reason}"
+
+        self.video_status.configure(text=message, text_color=ERROR)
+        self._set_video_badge("Fallback", "warning")
+
+        try:
+            report_warning(
+                "how_to_use",
+                "Instruction Video Fallback",
+                "The booth could not play the tutorial video after retries. Written instructions are available.",
+                details={"reason": reason, "transaction_id": self.transaction_id},
+                visible=True,
+            )
+        except Exception:
+            pass
+
+    def _handle_video_failure(self, reason):
+        if self._redirecting:
+            return
+
+        self._video_retry_count += 1
+        reason_text = str(reason or "Unknown video error")
+        print(
+            f"[HOWTO] Video failure attempt {self._video_retry_count}/{self.MAX_VIDEO_RETRIES}: {reason_text}",
+            flush=True,
+        )
+
+        if self._video_retry_count <= self.MAX_VIDEO_RETRIES:
+            self.video_status.configure(
+                text=(
+                    f"Instruction video issue. Retrying automatically "
+                    f"({self._video_retry_count}/{self.MAX_VIDEO_RETRIES})...\n{reason_text}"
+                ),
+                text_color=ERROR,
+            )
+            self._set_video_badge("Retrying", "warning")
+            self._schedule_video_retry()
+            return
+
+        self._show_fallback_instructions(reason_text)
+
+    def recover_from_error(self):
+        """Manual Retry / Continue action used by the global error dialog."""
+        if self._video_fallback_shown:
+            self.go_to_insert_kit()
+            return
+
+        self._video_retry_count = 0
+        self._video_fallback_shown = False
+        self._cancel_video_retry()
+        self.reset_video()
+        self.video_status.configure(text="Retrying instruction video...", text_color=INFO)
+        self._set_video_badge("Retrying", "warning")
+        self.after(200, self.show_video)
+
+    def schedule_auto_recovery(self, event=None):
+        """Let HowToUsePage self-heal when the app reports a recoverable error."""
+        if self._redirecting or self._video_fallback_shown:
+            return
+        if not self._video_retry_job:
+            self._schedule_video_retry()
 
     def _cancel_video_monitor(self):
         if self._video_monitor_job:
@@ -566,6 +720,7 @@ class HowToUsePage(ctk.CTkFrame):
                 self.after_cancel(self._video_monitor_job)
             except Exception:
                 pass
+
             self._video_monitor_job = None
 
     def _start_video_monitor(self):
@@ -597,11 +752,16 @@ class HowToUsePage(ctk.CTkFrame):
                 self.go_to_insert_kit()
                 return
 
+            if state == vlc.State.Error:
+                self._handle_video_failure("Video playback entered error state.")
+                return
+
             if state not in (vlc.State.Stopped, vlc.State.Error, vlc.State.Ended):
                 self._start_video_monitor()
 
         except Exception as e:
             print(f"[HOWTO] _monitor_video_completion failed: {e}", flush=True)
+            self._handle_video_failure(e)
 
     # ---------------------------------------------------------------------
     # Video path resolution
@@ -631,14 +791,20 @@ class HowToUsePage(ctk.CTkFrame):
             "instruction_video_path",
         ):
             value = product.get(key)
+
             if value:
                 candidates.append(value)
 
-        video_map = config.get("how_to_use_page", "video_map", default={}) or {}
+        video_map = config.get(
+            "how_to_use_page",
+            "video_map",
+            default={}
+        ) or {}
 
         for lookup_key in (product_id, product_name, product_type, dispense_slot):
             if lookup_key and isinstance(video_map, dict):
                 mapped = video_map.get(lookup_key)
+
                 if mapped:
                     candidates.append(mapped)
 
@@ -693,19 +859,130 @@ class HowToUsePage(ctk.CTkFrame):
 
         return configured
 
+    def _get_audio_track_info(self):
+        track_count = -1
+        current_track = -999
+        descriptions = []
+
+        try:
+            track_count = self.media_player.audio_get_track_count()
+        except Exception:
+            pass
+
+        try:
+            current_track = self.media_player.audio_get_track()
+        except Exception:
+            pass
+
+        try:
+            raw_descriptions = self.media_player.audio_get_track_description()
+
+            if raw_descriptions:
+                descriptions = list(raw_descriptions)
+        except Exception:
+            descriptions = []
+
+        return track_count, current_track, descriptions
+
+    def _force_first_audio_track(self):
+        try:
+            track_count, current_track, descriptions = self._get_audio_track_info()
+
+            # No track visible yet. VLC sometimes reports this during the first
+            # moments after play() on Raspberry Pi.
+            if track_count is None or track_count <= 0:
+                return False
+
+            # Already has an active audio track.
+            if current_track is not None and int(current_track) >= 0:
+                return True
+
+            for item in descriptions:
+                try:
+                    track_id = int(item[0])
+                    track_name = item[1] if len(item) > 1 else ""
+                except Exception:
+                    continue
+
+                # VLC sometimes includes disabled track IDs below 0.
+                if track_id >= 0:
+                    self.media_player.audio_set_track(track_id)
+                    print(
+                        f"[HOWTO] Forced audio track: id={track_id}, name={track_name}",
+                        flush=True
+                    )
+                    return True
+
+            # Fallback: try track 1, then 0.
+            for fallback_track in (1, 0):
+                try:
+                    result = self.media_player.audio_set_track(fallback_track)
+
+                    if result == 0:
+                        print(
+                            f"[HOWTO] Forced fallback audio track: {fallback_track}",
+                            flush=True
+                        )
+                        return True
+                except Exception:
+                    pass
+
+            return False
+
+        except Exception as e:
+            print(f"[HOWTO] _force_first_audio_track failed: {e}", flush=True)
+            return False
+
     def _apply_safe_audio(self):
         try:
             safe_volume = self._get_safe_volume()
+
+            # Always unmute before and after play().
             self.media_player.audio_set_mute(False)
             self.media_player.audio_set_volume(safe_volume)
+
+            forced_track = self._force_first_audio_track()
+
+            # Apply again after track selection.
+            self.media_player.audio_set_mute(False)
+            self.media_player.audio_set_volume(safe_volume)
+
+            track_count, current_track, descriptions = self._get_audio_track_info()
+
+            print(
+                "[HOWTO] Audio applied | "
+                f"path={self.current_video_path} | "
+                f"volume={safe_volume} | "
+                f"mute={self.media_player.audio_get_mute()} | "
+                f"track_count={track_count} | "
+                f"current_track={current_track} | "
+                f"forced_track={forced_track} | "
+                f"tracks={descriptions}",
+                flush=True
+            )
+
         except Exception as e:
             print(f"[HOWTO] _apply_safe_audio failed: {e}", flush=True)
+
+    def _schedule_audio_reapply(self):
+        for delay_ms in self.AUDIO_REAPPLY_DELAYS_MS:
+            try:
+                self.after(delay_ms, self._apply_safe_audio)
+            except Exception:
+                pass
 
     # ---------------------------------------------------------------------
     # Page flow
     # ---------------------------------------------------------------------
 
-    def update_data(self, user_data=None, selected_product=None, product=None, transaction_id=None, **kwargs):
+    def update_data(
+        self,
+        user_data=None,
+        selected_product=None,
+        product=None,
+        transaction_id=None,
+        **kwargs
+    ):
         self.user_data = user_data or {}
         self.selected_product = selected_product or product
         self._redirecting = False
@@ -717,6 +994,13 @@ class HowToUsePage(ctk.CTkFrame):
             or self.user_data.get("transactionID")
             or self.user_data.get("latest_transaction_id")
         )
+        self.payment_session_id = kwargs.get("payment_session_id") or self.user_data.get("payment_session_id")
+        self.payment_reference = kwargs.get("payment_reference")
+        self.payment_method = kwargs.get("payment_method")
+        self.online_payment = bool(kwargs.get("online_payment", False))
+        self.payment_amount = kwargs.get("payment_amount", 0)
+        self.payment_mode = kwargs.get("payment_mode")
+        self.simulated = kwargs.get("simulated", False)
 
         if self.transaction_id:
             self.user_data["transaction_id"] = self.transaction_id
@@ -729,6 +1013,9 @@ class HowToUsePage(ctk.CTkFrame):
         except Exception:
             pass
 
+        self._video_retry_count = 0
+        self._video_fallback_shown = False
+        self._cancel_video_retry()
         self.video_status.configure(text="")
         self._set_video_badge("Loading...", "dark")
 
@@ -753,7 +1040,14 @@ class HowToUsePage(ctk.CTkFrame):
             delay=1000,
             user_data=self.user_data,
             selected_product=self.selected_product,
-            transaction_id=self.transaction_id
+            transaction_id=self.transaction_id,
+            online_payment=self.online_payment,
+            payment_method=self.payment_method,
+            payment_session_id=self.payment_session_id,
+            payment_reference=self.payment_reference,
+            payment_amount=self.payment_amount,
+            payment_mode=self.payment_mode,
+            simulated=self.simulated,
         )
 
     # ---------------------------------------------------------------------
@@ -771,18 +1065,29 @@ class HowToUsePage(ctk.CTkFrame):
 
             video_path = self._resolve_video_path()
 
+            print(f"[HOWTO] Selected product: {self.selected_product}", flush=True)
+            print(f"[HOWTO] Resolved video path: {video_path}", flush=True)
+
             if not video_path:
                 msg = config.get(
                     "how_to_use_page",
                     "video_not_found_text",
                     default="Tutorial video not found."
                 )
-                self.video_status.configure(text=msg, text_color=ERROR)
-                self._set_video_badge("Unavailable", "error")
+                self._handle_video_failure(msg)
                 return
 
             if (not self.video_loaded) or (self.current_video_path != video_path):
                 media = self.instance.media_new(video_path)
+
+                # Keep audio enabled for every product/tutorial type.
+                # These options are safe even if the file only has one track.
+                try:
+                    media.add_option(":no-video-title-show")
+                    media.add_option(":audio-track=0")
+                except Exception:
+                    pass
+
                 self.media_player.set_media(media)
                 self.video_loaded = True
                 self.current_video_path = video_path
@@ -794,22 +1099,38 @@ class HowToUsePage(ctk.CTkFrame):
         except Exception as e:
             print(f"[HOWTO] show_video failed: {e}", flush=True)
 
-            self.video_status.configure(
-                text=f"{config.get('how_to_use_page', 'video_error_prefix', default='Video error:')} {e}",
-                text_color=ERROR
+            self._handle_video_failure(
+                f"{config.get('how_to_use_page', 'video_error_prefix', default='Video error:')} {e}"
             )
-            self._set_video_badge("Error", "error")
 
     def play_video(self):
         try:
-            self._apply_safe_audio()
-            self.media_player.play()
+            safe_volume = self._get_safe_volume()
 
-            self.after(250, self._apply_safe_audio)
-            self.after(1000, self._apply_safe_audio)
+            # Apply before play.
+            self.media_player.audio_set_mute(False)
+            self.media_player.audio_set_volume(safe_volume)
+
+            result = self.media_player.play()
+            if result == -1:
+                raise RuntimeError("VLC could not start playback.")
+
+            print(
+                "[HOWTO] play_video called | "
+                f"result={result} | "
+                f"path={self.current_video_path} | "
+                f"volume={safe_volume}",
+                flush=True
+            )
+
+            # Apply immediately and repeatedly after play.
+            # This is the key fix for Raspberry Pi + VLC where audio can be
+            # initialized after video has already started.
+            self._apply_safe_audio()
+            self._schedule_audio_reapply()
 
             self._set_video_badge(
-                f"Playing • Vol {self._get_safe_volume()}",
+                f"Playing • Vol {safe_volume}",
                 "success"
             )
 
@@ -817,7 +1138,7 @@ class HowToUsePage(ctk.CTkFrame):
 
         except Exception as e:
             print(f"[HOWTO] play_video failed: {e}", flush=True)
-            self._set_video_badge("Error", "error")
+            self._handle_video_failure(e)
 
     def pause_video(self):
         try:
@@ -831,7 +1152,10 @@ class HowToUsePage(ctk.CTkFrame):
         try:
             self._cancel_video_monitor()
             self.media_player.stop()
+
+            # Silence only when leaving/stopping the page.
             self.media_player.audio_set_volume(0)
+
             self._set_video_badge("Stopped", "neutral")
         except Exception as e:
             print(f"[HOWTO] stop_video failed: {e}", flush=True)
@@ -845,5 +1169,6 @@ class HowToUsePage(ctk.CTkFrame):
     def destroy(self):
         self._cancel_config_refresh()
         self._cancel_video_monitor()
+        self._cancel_video_retry()
         self.reset_video()
         super().destroy()

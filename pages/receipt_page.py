@@ -1198,8 +1198,21 @@ class ReceiptPage(ctk.CTkFrame):
             completed_at=datetime.now().isoformat(),
         )
 
+        self._show_coupon_print_error_notice(self.coupon_print_error)
         self._maybe_start_website_sync(run_id)
-        self._schedule_redirect(run_id, force=True)
+
+        self._schedule_redirect(
+            run_id,
+            force=True,
+            delay_ms=int(
+                config.get(
+                    "receipt_page",
+                    "coupon_error_notice_delay_ms",
+                    default=4500,
+                )
+                or 4500
+            ),
+        )
 
     def _print_receipt(self, run_id):
         attempted_at = datetime.now().isoformat()
@@ -1321,11 +1334,14 @@ class ReceiptPage(ctk.CTkFrame):
                 self.coupon_print_status = "failed"
 
             self.coupon_print_error = self.print_error or "Unknown printer error"
+
             print(
                 f"[RECEIPT] Coupon print failed: {self.coupon_print_error}. "
                 f"Redirecting to dispensing anyway.",
                 flush=True,
             )
+
+            self._show_coupon_print_error_notice(self.coupon_print_error)
 
         if self.receipt_data is not None:
             if self.print_success and self.pending_coupon_payload:
@@ -1340,18 +1356,82 @@ class ReceiptPage(ctk.CTkFrame):
             )
 
         self._maybe_start_website_sync(run_id)
-        self._schedule_redirect(run_id, force=False)
 
-    def _schedule_redirect(self, run_id, force=False):
+        redirect_delay_ms = 0
+
+        if not self.print_success:
+            redirect_delay_ms = int(
+                config.get(
+                    "receipt_page",
+                    "coupon_error_notice_delay_ms",
+                    default=4500,
+                )
+                or 4500
+            )
+
+        self._schedule_redirect(
+            run_id,
+            force=False,
+            delay_ms=redirect_delay_ms,
+        )
+
+    def _show_coupon_print_error_notice(self, error_text=""):
+        friendly_message = (
+            "Discount coupon could not be printed. "
+            "Your test kit will still be dispensed. "
+            "You may still use the discount QR code generated on the website "
+            "for your next purchase."
+        )
+
+        try:
+            self.title_label.configure(
+                text="Discount Coupon Notice",
+                text_color=ERROR,
+            )
+
+            self.subtitle_label.configure(
+                text=friendly_message,
+                text_color=ERROR,
+            )
+        except Exception:
+            pass
+
+        try:
+            self._set_detail(
+                "discount",
+                "Use the website discount QR",
+                ERROR,
+            )
+        except Exception:
+            pass
+
+        try:
+            self._write_print_status_to_receipt(
+                status=self.coupon_print_status or "failed",
+                error_text=error_text or self.coupon_print_error,
+                completed_at=datetime.now().isoformat(),
+            )
+        except Exception:
+            pass
+
+    def _schedule_redirect(self, run_id, force=False, delay_ms=None):
         if not self._is_current_run(run_id):
             return
 
         if self.redirect_scheduled:
             return
 
+        try:
+            delay_ms = int(delay_ms or 0)
+        except Exception:
+            delay_ms = 0
+
+        delay_ms = max(0, delay_ms)
+
         self.redirect_scheduled = True
+
         self._redirect_after_job = self.after(
-            0,
+            delay_ms,
             lambda rid=run_id, force_redirect=force: self._redirect_to_dispensing(
                 rid,
                 force=force_redirect,

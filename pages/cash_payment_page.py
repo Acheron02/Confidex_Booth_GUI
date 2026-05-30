@@ -1,12 +1,87 @@
 import time
+import json
+import uuid
 import threading
 import tkinter as tk
+from datetime import datetime, timezone
+from pathlib import Path
 
 from frontend import tk_compat as ctk
 from frontend import theme
 from frontend.widgets import AppShell, RoundedCard, PillButton, card_body
 from backend.util import api_client
 from config_manager import config
+
+
+ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = ROOT / "data"
+OFFLINE_CASH_DIR = DATA_DIR / "offline_cash_transactions"
+OFFLINE_CASH_JSONL = DATA_DIR / "offline_cash_transactions.jsonl"
+
+
+def _utc_now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _json_safe(value):
+    try:
+        json.dumps(value, ensure_ascii=False, default=str)
+        return value
+    except Exception:
+        return str(value)
+
+
+def _make_local_cash_transaction_id():
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return f"LOCAL-CASH-{stamp}-{uuid.uuid4().hex[:8].upper()}"
+
+
+def _save_offline_cash_transaction(
+    transaction_data,
+    cash,
+    change,
+    total,
+    transaction_id,
+    error_message="",
+):
+    """
+    Saves a cash transaction locally when the website/API is unreachable.
+
+    This prevents the booth from blocking after the user already paid cash.
+    The local file can be synced/reconciled later by an operator or a future
+    sync worker.
+    """
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    OFFLINE_CASH_DIR.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "local_transaction_id": transaction_id,
+        "transaction_id": transaction_id,
+        "created_at": _utc_now_iso(),
+        "status": "offline_pending_sync",
+        "payment_method": "cash",
+        "cash": cash,
+        "total_paid": cash,
+        "change": change,
+        "total": total,
+        "sync_error": str(error_message or ""),
+        "transaction_data": _json_safe(transaction_data),
+    }
+
+    file_path = OFFLINE_CASH_DIR / f"{transaction_id}.json"
+
+    file_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False, default=str),
+        encoding="utf-8",
+    )
+
+    with OFFLINE_CASH_JSONL.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
+
+    print(f"[CASH] Offline cash transaction saved locally: {file_path}", flush=True)
+
+    return payload
+
 
 GPIOZERO_AVAILABLE = True
 
@@ -34,6 +109,7 @@ except Exception as e:
 from backend.util.dispenser_serial import (
     send_bill_on_command,
     send_bill_off_command,
+    ensure_kits_homed,
 )
 
 
@@ -111,6 +187,12 @@ class CashPaymentPage(ctk.CTkFrame):
 
         self.bill_acceptor_enabled = False
         self._bill_command_lock = threading.Lock()
+
+        # Homing gate: cash must not be accepted while the kit dispenser motors
+        # are still returning to their home positions.
+        self.waiting_for_homing = False
+        self._homing_wait_token = 0
+        self._homing_wait_lock = threading.Lock()
 
         print(f"[CASH] Initializing CashPaymentPage | GPIOZERO_AVAILABLE={GPIOZERO_AVAILABLE}", flush=True)
 
@@ -920,13 +1002,13 @@ class CashPaymentPage(ctk.CTkFrame):
 
             self.progress.configure(text=self._accepted_bills_text())
 
-            if not self.transaction_in_progress and not self.loading_visible:
+            if (
+                not self.transaction_in_progress
+                and not self.loading_visible
+                and not self.waiting_for_homing
+            ):
                 self.helper_text.configure(
-                    text=config.get(
-                        "cash_payment_page",
-                        "helper_text",
-                        default="Insert bills one at a time."
-                    )
+                    text=self._cash_ready_helper_text()
                 )
 
         except Exception as e:
@@ -1126,6 +1208,10 @@ class CashPaymentPage(ctk.CTkFrame):
                 print(f"[CASH] BILL_OFF exception: {e}", flush=True)
 
     def enable_bill_acceptor(self, async_mode=True):
+        if self.waiting_for_homing:
+            print("[CASH] BILL_ON blocked because kit homing is still running", flush=True)
+            return
+
         if self.bill_acceptor_enabled:
             return
 
@@ -1141,6 +1227,196 @@ class CashPaymentPage(ctk.CTkFrame):
             self._disable_bill_acceptor_thread()
 
     # ---------------------------------------------------------------------
+    # HOMING GATE BEFORE CASH INSERTION
+    # ---------------------------------------------------------------------
+
+    def _cash_ready_helper_text(self):
+        helper_key = "planned_helper_text" if self.planned_cash_bill is not None else "helper_text"
+
+        return config.get(
+            "cash_payment_page",
+            helper_key,
+            default="Insert bills one at a time."
+        )
+
+    def _invalidate_homing_wait(self):
+        with self._homing_wait_lock:
+            self._homing_wait_token += 1
+            self.waiting_for_homing = False
+
+    def _show_homing_wait_state(self):
+        self.stop_status_animation()
+        self.hide_loading()
+
+        self.waiting_for_homing = True
+        self.cash_bypass_shortcut_enabled = False
+
+        try:
+            self.disable_bill_acceptor()
+        except Exception:
+            pass
+
+        self._set_status(
+            text=config.get(
+                "cash_payment_page",
+                "homing_wait_status_text",
+                default="Please wait for the motors to finish homing."
+            ),
+            color=ORANGE,
+            visible=True
+        )
+
+        self._set_helper(
+            text=config.get(
+                "cash_payment_page",
+                "homing_wait_helper_text",
+                default="The kiosk is preparing the kit dispenser. Please insert cash only after this message changes."
+            ),
+            color=MUTED,
+            visible=True
+        )
+
+        self._set_progress(
+            text=config.get(
+                "cash_payment_page",
+                "homing_wait_progress_text",
+                default="Preparing dispenser motors before accepting cash..."
+            ),
+            color=ORANGE,
+            visible=True
+        )
+
+        self._set_status_badge("Homing", ORANGE)
+
+    def _show_cash_ready_state(self):
+        self.waiting_for_homing = False
+        self.cash_bypass_shortcut_enabled = True
+
+        self.hide_loading()
+
+        self.start_status_animation(
+            config.get("cash_payment_page", "status_text", default="Insert bills to pay"),
+            INFO
+        )
+
+        self._set_progress(
+            text=self._accepted_bills_text(),
+            color=MUTED,
+            visible=True
+        )
+
+        self._set_helper(
+            text=self._cash_ready_helper_text(),
+            color=MUTED,
+            visible=True
+        )
+
+        self._set_status_badge("Ready", INFO)
+        self.enable_bill_acceptor()
+
+    def _show_homing_failed_state(self, message=""):
+        self.waiting_for_homing = False
+        self.cash_bypass_shortcut_enabled = False
+
+        self.stop_status_animation()
+        self.hide_loading()
+        self.disable_bill_acceptor()
+
+        self._set_status(
+            text=config.get(
+                "cash_payment_page",
+                "homing_failed_status_text",
+                default="Dispenser motors are not ready."
+            ),
+            color=ERROR,
+            visible=True
+        )
+
+        self._set_helper(
+            text=message or config.get(
+                "cash_payment_page",
+                "homing_failed_helper_text",
+                default="Please ask for assistance. The bill acceptor will remain disabled."
+            ),
+            color=ERROR,
+            visible=True
+        )
+
+        self._set_progress(
+            text=config.get(
+                "cash_payment_page",
+                "homing_failed_progress_text",
+                default="Cash payment is temporarily unavailable until homing finishes successfully."
+            ),
+            color=ERROR,
+            visible=True
+        )
+
+        self._set_status_badge("Homing Error", ERROR)
+
+    def _start_homing_wait_before_cash(self):
+        self._show_homing_wait_state()
+
+        with self._homing_wait_lock:
+            self._homing_wait_token += 1
+            token = self._homing_wait_token
+
+        threading.Thread(
+            target=self._wait_for_homing_before_cash_thread,
+            args=(token,),
+            daemon=True
+        ).start()
+
+    def _wait_for_homing_before_cash_thread(self, token):
+        print("[CASH] Waiting for kit motors to finish homing before enabling cash", flush=True)
+
+        try:
+            timeout = float(config.get(
+                "cash_payment_page",
+                "homing_wait_timeout_seconds",
+                default=150
+            ))
+        except Exception:
+            timeout = 150.0
+
+        try:
+            result = ensure_kits_homed(timeout=timeout)
+        except Exception as e:
+            result = {
+                "success": False,
+                "message": str(e),
+            }
+
+        print(f"[CASH] Homing wait result before cash: {result}", flush=True)
+
+        def _finish():
+            with self._homing_wait_lock:
+                if token != self._homing_wait_token:
+                    print("[CASH] Ignoring stale homing wait result", flush=True)
+                    return
+
+            if not self.user_data or not self.selected_product:
+                print("[CASH] Homing wait finished but page no longer has active order", flush=True)
+                self.waiting_for_homing = False
+                return
+
+            if result.get("success"):
+                self._show_cash_ready_state()
+                return
+
+            self._show_homing_failed_state(
+                message=str(result.get("message") or "Unable to confirm motor homing.")
+            )
+
+        try:
+            self.controller.after(0, _finish)
+        except Exception:
+            try:
+                self.after(0, _finish)
+            except Exception:
+                pass
+
+    # ---------------------------------------------------------------------
     # PAGE FLOW
     # ---------------------------------------------------------------------
 
@@ -1152,6 +1428,7 @@ class CashPaymentPage(ctk.CTkFrame):
             return
 
         self.cash_bypass_shortcut_enabled = False
+        self._invalidate_homing_wait()
 
         self.disable_bill_acceptor()
         self.stop_status_animation()
@@ -1178,6 +1455,7 @@ class CashPaymentPage(ctk.CTkFrame):
         self.total_cash_inserted = 0
         self.transaction_in_progress = False
         self.cash_bypass_shortcut_enabled = True
+        self._invalidate_homing_wait()
 
         try:
             self.shell.set_header_right(f"Welcome, {self.user_data.get('username', 'User')}!")
@@ -1231,32 +1509,9 @@ class CashPaymentPage(ctk.CTkFrame):
 
         self._update_payment_overview(total)
 
-        self.start_status_animation(
-            config.get("cash_payment_page", "status_text", default="Insert bills to pay"),
-            INFO
-        )
-
-        self._set_progress(
-            text=self._accepted_bills_text(),
-            color=MUTED,
-            visible=True
-        )
-
-        helper_key = "planned_helper_text" if self.planned_cash_bill is not None else "helper_text"
-
-        self._set_helper(
-            text=config.get(
-                "cash_payment_page",
-                helper_key,
-                default="Insert bills one at a time."
-            ),
-            color=MUTED,
-            visible=True
-        )
-
-        self._set_status_badge("Ready", INFO)
-        self.hide_loading()
-        self.enable_bill_acceptor()
+        # Do not immediately enable the bill acceptor.
+        # Wait for kit motor homing first so the user sees a proper preparation state.
+        self._start_homing_wait_before_cash()
 
     # ---------------------------------------------------------------------
     # STATUS SETTERS
@@ -1360,6 +1615,10 @@ class CashPaymentPage(ctk.CTkFrame):
     def _pulse_callback(self):
         now = time.time()
 
+        if self.waiting_for_homing:
+            print("[CASH] Ignored bill pulse because kit homing is still running", flush=True)
+            return
+
         with self.pulse_lock:
             self.pulse_count += 1
             self.last_pulse_time = now
@@ -1432,6 +1691,25 @@ class CashPaymentPage(ctk.CTkFrame):
 
     def process_bill(self, bill_value):
         print(f"[CASH] process_bill called | bill_value={bill_value}", flush=True)
+
+        if self.waiting_for_homing:
+            self._set_status(
+                text=config.get(
+                    "cash_payment_page",
+                    "homing_wait_status_text",
+                    default="Please wait for the motors to finish homing."
+                ),
+                color=ORANGE,
+                visible=True
+            )
+            self._set_helper(
+                text="Cash is not accepted yet. Please wait for the Ready message.",
+                color=MUTED,
+                visible=True
+            )
+            threading.Thread(target=self.reject_bill, daemon=True).start()
+            return
+
         self.show_loading()
 
         if not self.selected_product:
@@ -1576,19 +1854,85 @@ class CashPaymentPage(ctk.CTkFrame):
 
         self._status_anim_job = self.after(450, self._animate_status_text)
 
+    def _continue_after_cash_payment(
+        self,
+        transaction_data_local,
+        cash,
+        change,
+        total,
+        transaction_id=None,
+        offline=False,
+        offline_error="",
+    ):
+        """
+        Continue the cash flow even when the website is unavailable.
+
+        Cash is a physical payment. Once the booth has accepted enough cash,
+        internet/API failure must not block change dispensing, receipt printing,
+        kit dispensing, or kit insertion. If the online transaction cannot be
+        created, a local transaction id is generated and the full transaction
+        payload is saved under data/offline_cash_transactions/.
+        """
+        local_transaction_id = str(transaction_id or "").strip()
+
+        if not local_transaction_id:
+            local_transaction_id = _make_local_cash_transaction_id()
+
+        if offline:
+            try:
+                _save_offline_cash_transaction(
+                    transaction_data=transaction_data_local,
+                    cash=cash,
+                    change=change,
+                    total=total,
+                    transaction_id=local_transaction_id,
+                    error_message=offline_error,
+                )
+            except Exception as save_error:
+                print(
+                    f"[CASH] Failed to save offline cash transaction file: {save_error}",
+                    flush=True,
+                )
+
+        self.controller.after(
+            0,
+            lambda: self._handle_transaction_success(
+                cash=cash,
+                change=change,
+                total=total,
+                transaction_id=local_transaction_id,
+                offline=offline,
+                offline_error=offline_error,
+            ),
+        )
+
     def post_transaction_and_continue(self, transaction_data_local, cash, change, total):
         print("[CASH] post_transaction_and_continue started", flush=True)
 
         try:
             response = api_client.post_transaction(transaction_data_local)
-            print(f"[CASH] post_transaction status_code={response.status_code} ok={response.ok}", flush=True)
+            print(
+                f"[CASH] post_transaction status_code={response.status_code} ok={response.ok}",
+                flush=True,
+            )
 
             if not response.ok:
-                self.controller.after(
-                    0,
-                    lambda: self._handle_transaction_failure(
-                        f"{config.get('cash_payment_page', 'transaction_failed_prefix', default='Transaction failed')} ({response.status_code})."
-                    )
+                error_message = (
+                    f"{config.get('cash_payment_page', 'transaction_failed_prefix', default='Transaction failed')} "
+                    f"({response.status_code})."
+                )
+                print(
+                    f"[CASH] Online transaction failed; continuing cash flow offline: {error_message}",
+                    flush=True,
+                )
+                self._continue_after_cash_payment(
+                    transaction_data_local=transaction_data_local,
+                    cash=cash,
+                    change=change,
+                    total=total,
+                    transaction_id=None,
+                    offline=True,
+                    offline_error=error_message,
                 )
                 return
 
@@ -1606,116 +1950,196 @@ class CashPaymentPage(ctk.CTkFrame):
             except Exception as e:
                 print(f"[CASH] failed to parse response json: {e}", flush=True)
 
-            self.controller.after(
-                0,
-                lambda: self._handle_transaction_success(
-                    cash=cash,
-                    change=change,
-                    total=total,
-                    transaction_id=transaction_id
+            if not transaction_id:
+                transaction_id = _make_local_cash_transaction_id()
+                print(
+                    f"[CASH] Online transaction returned no id. Using local id={transaction_id}",
+                    flush=True,
                 )
+
+            self._continue_after_cash_payment(
+                transaction_data_local=transaction_data_local,
+                cash=cash,
+                change=change,
+                total=total,
+                transaction_id=transaction_id,
+                offline=False,
+                offline_error="",
             )
 
         except Exception as e:
-            print(f"[CASH] post_transaction exception: {e}", flush=True)
-            self.controller.after(
-                0,
-                lambda: self._handle_transaction_failure(
-                    f"{config.get('cash_payment_page', 'network_error_prefix', default='Network/API error:')} {e}"
-                )
+            error_message = (
+                f"{config.get('cash_payment_page', 'network_error_prefix', default='Network/API error:')} {e}"
+            )
+            print(
+                f"[CASH] post_transaction exception; continuing cash flow offline: {error_message}",
+                flush=True,
+            )
+            self._continue_after_cash_payment(
+                transaction_data_local=transaction_data_local,
+                cash=cash,
+                change=change,
+                total=total,
+                transaction_id=None,
+                offline=True,
+                offline_error=error_message,
             )
 
-    def _handle_transaction_success(self, cash, change, total, transaction_id=None):
-        print(f"[CASH] transaction success | transaction_id={transaction_id} | change={change}", flush=True)
+
+    def _handle_transaction_success(
+        self,
+        cash,
+        change,
+        total,
+        transaction_id=None,
+        offline=False,
+        offline_error="",
+    ):
+        print(
+            f"[CASH] transaction success | transaction_id={transaction_id} | "
+            f"change={change} | offline={offline}",
+            flush=True,
+        )
 
         self.cash_bypass_shortcut_enabled = False
         self.disable_bill_acceptor(async_mode=False)
         self.hide_loading()
-        self._set_status_badge("Saved", SUCCESS)
+        self.transaction_in_progress = False
+
+        transaction_id = str(transaction_id or "").strip() or _make_local_cash_transaction_id()
+
+        if offline:
+            self._set_status_badge("Offline saved", ORANGE)
+            self._set_status(
+                text="Cash payment saved locally. Continuing without internet.",
+                color=ORANGE,
+                visible=True,
+            )
+            self._set_helper(
+                text="The booth will continue. The transaction can be synced when the website connection returns.",
+                color=MUTED,
+                visible=True,
+            )
+        else:
+            self._set_status_badge("Saved", SUCCESS)
+
+        # Keep this information attached to the flow so receipt/dispensing pages
+        # can preserve the local id and show/use the same transaction reference.
+        self.user_data["transaction_id"] = transaction_id
+        self.user_data["latest_transaction_id"] = transaction_id
+        self.user_data["payment_method"] = "cash"
+        self.user_data["offline_transaction_pending"] = bool(offline)
+
+        if offline:
+            self.user_data["offline_transaction_id"] = transaction_id
+            self.user_data["transaction_sync_error"] = str(offline_error or "")
+
+        common_kwargs = {
+            "user_data": self.user_data,
+            "product": self.selected_product,
+            "discount": self.discount,
+            "total_paid": cash,
+            "change": change,
+            "total": total,
+            "payment_method": "cash",
+            "online_payment": False,
+            "transaction_id": transaction_id,
+        }
 
         if change > 0:
             self._set_status(
-                text="Payment saved. Preparing change.",
-                color=SUCCESS,
-                visible=True
+                text=(
+                    "Cash payment saved locally. Preparing change."
+                    if offline
+                    else "Payment saved. Preparing change."
+                ),
+                color=ORANGE if offline else SUCCESS,
+                visible=True,
             )
             self._set_helper(
-                text="Please wait.",
+                text=(
+                    "Internet is unavailable, but the booth will continue."
+                    if offline
+                    else "Please wait."
+                ),
                 color=MUTED,
-                visible=True
+                visible=True,
             )
 
             self.controller.show_loading_then(
                 config.get(
                     "cash_payment_page",
                     "prepare_change_loading_text",
-                    default="Preparing change"
+                    default="Preparing change",
                 ),
                 "ChangeDispensingPage",
                 delay=800,
-                user_data=self.user_data,
-                product=self.selected_product,
-                discount=self.discount,
-                total_paid=cash,
-                change=change,
-                total=total,
-                payment_method="cash",
-                online_payment=False,
-                transaction_id=transaction_id
+                **common_kwargs,
             )
         else:
             self._set_status(
-                text="Payment saved. Generating receipt.",
-                color=SUCCESS,
-                visible=True
+                text=(
+                    "Cash payment saved locally. Generating receipt."
+                    if offline
+                    else "Payment saved. Generating receipt."
+                ),
+                color=ORANGE if offline else SUCCESS,
+                visible=True,
             )
             self._set_helper(
-                text="No change needed.",
+                text=(
+                    "Internet is unavailable, but the receipt will still be saved locally."
+                    if offline
+                    else "No change needed."
+                ),
                 color=MUTED,
-                visible=True
+                visible=True,
             )
 
             self.controller.show_loading_then(
                 config.get(
                     "cash_payment_page",
                     "generate_receipt_loading_text",
-                    default="Generating receipt"
+                    default="Generating receipt",
                 ),
                 "ReceiptPage",
                 delay=800,
-                user_data=self.user_data,
-                product=self.selected_product,
-                discount=self.discount,
-                total_paid=cash,
-                change=change,
-                total=total,
-                payment_method="cash",
-                online_payment=False,
-                transaction_id=transaction_id
+                **common_kwargs,
             )
 
         self.after(7000, self.reset_fields)
+
 
     def _handle_transaction_failure(self, error_message):
         print(f"[CASH] transaction failure | error={error_message}", flush=True)
 
         self.transaction_in_progress = False
-        self.cash_bypass_shortcut_enabled = True
+        self.cash_bypass_shortcut_enabled = False
         self.hide_loading()
         self.disable_bill_acceptor()
 
         self._set_status(
-            text="Transaction failed.",
+            text="Cash payment needs operator review.",
             color=ERROR,
             visible=True
         )
         self._set_helper(
-            text="Please try again or ask for assistance.",
+            text=(
+                "The bill was already accepted, but the booth could not continue. "
+                "Please call an operator. Do not automatically reject because the cash was already accepted."
+            ),
             color=ERROR,
             visible=True
         )
 
-        threading.Thread(target=self.reject_bill, daemon=True).start()
+        if hasattr(self.controller, "show_error"):
+            self.controller.show_error(
+                f"Cash payment issue.\n{error_message}\n\nThe bill was already accepted. Please call an operator.",
+                title="Cash Payment Error",
+                action_text=None,
+                on_action=None,
+            )
+
 
     def reset_fields(self, **kwargs):
         print("[CASH] reset_fields called", flush=True)
@@ -1727,6 +2151,7 @@ class CashPaymentPage(ctk.CTkFrame):
         self.transaction_in_progress = False
         self.planned_cash_bill = None
         self.cash_bypass_shortcut_enabled = False
+        self._invalidate_homing_wait()
 
         with self.pulse_lock:
             self.pulse_count = 0
@@ -1773,6 +2198,7 @@ class CashPaymentPage(ctk.CTkFrame):
 
     def destroy(self):
         self.cash_bypass_shortcut_enabled = False
+        self._invalidate_homing_wait()
         self._unbind_cash_bypass_shortcut()
         self.stop_status_animation()
         self._cancel_config_refresh()

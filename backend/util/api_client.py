@@ -1,6 +1,7 @@
-import os
 import mimetypes
+import os
 from pathlib import Path
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -67,6 +68,10 @@ def _headers() -> dict:
 
 def url(path: str) -> str:
     return f"{_base_url()}{path}"
+
+
+def website_base_url() -> str:
+    return _base_url()
 
 
 def post_json(path: str, payload: dict, timeout: int = 10):
@@ -170,6 +175,35 @@ def post_device_inventory(payload: dict):
     return post_json("/api/device/inventory", payload, timeout=15)
 
 
+def _stringify_extra_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value)
+    try:
+        import json
+
+        return json.dumps(value, ensure_ascii=False, default=str)
+    except Exception:
+        return str(value)
+
+
+def _merge_extra_form_data(data: dict, extra_data: dict | None):
+    if not extra_data:
+        return data
+
+    for key, value in extra_data.items():
+        clean_key = str(key or "").strip()
+        if not clean_key:
+            continue
+
+        text_value = _stringify_extra_value(value).strip()
+        if text_value:
+            data[clean_key] = text_value
+
+    return data
+
+
 def upload_image(
     user_id: str,
     timestamp: str,
@@ -177,6 +211,7 @@ def upload_image(
     image_path: str,
     product_id: str | None = None,
     transaction_id: str | None = None,
+    extra_data: dict | None = None,
 ):
     image_file = Path(image_path)
 
@@ -202,6 +237,8 @@ def upload_image(
         if transaction_id:
             data["transaction_id"] = str(transaction_id)
 
+        data = _merge_extra_form_data(data, extra_data)
+
         return post_multipart(
             "/api/device/image/upload",
             data=data,
@@ -216,6 +253,7 @@ def upload_session_images(
     session_dir,
     product_id: str | None = None,
     transaction_id: str | None = None,
+    extra_data: dict | None = None,
 ):
     session_dir = Path(session_dir)
     results = {}
@@ -245,6 +283,8 @@ def upload_session_images(
             image_type = "annotated"
         elif "result" in stem:
             image_type = "result"
+        elif "original" in stem:
+            image_type = "original"
         elif "raw" in stem:
             image_type = "raw"
         else:
@@ -258,6 +298,7 @@ def upload_session_images(
                 image_path=str(image_path),
                 product_id=product_id,
                 transaction_id=transaction_id,
+                extra_data=extra_data,
             )
 
             results[image_path.name] = {

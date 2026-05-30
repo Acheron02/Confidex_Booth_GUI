@@ -19,7 +19,7 @@ ARDUINO_BOOT_WAIT_SECONDS = 3.0
 HOME_TIMEOUT_SECONDS = 130
 DISPENSE_TIMEOUT_SECONDS = 75
 RETURN_HOME_TIMEOUT_SECONDS = 90
-DISPOSE_TIMEOUT_SECONDS = 45
+DISPOSE_TIMEOUT_SECONDS = 90
 CHANGE_TIMEOUT_SECONDS = 90
 
 _SERIAL_LOCK = threading.RLock()
@@ -30,11 +30,34 @@ _KITS_HOMED_EVENT = threading.Event()
 _HOMING_IN_PROGRESS = False
 _HOMING_LOCK = threading.RLock()
 
+_DISPOSAL_CANCEL_EVENT = threading.Event()
+
+
+def request_disposal_cancel():
+    """Ask an in-progress DISPOSE_KIT command to stop/defer.
+
+    The serial reader checks this event while it is waiting for DISPOSED:.
+    It writes STOP through the same open serial connection before releasing
+    the shared lock, so the normal booth flow can continue sooner.
+    """
+    _DISPOSAL_CANCEL_EVENT.set()
+
+
+def clear_disposal_cancel_request():
+    _DISPOSAL_CANCEL_EVENT.clear()
+
+
+def is_disposal_cancel_requested():
+    return _DISPOSAL_CANCEL_EVENT.is_set()
+
 
 FINAL_PREFIXES = (
     "DISPENSED:",
     "CHANGE_DISPENSED:",
     "DISPOSED:",
+    "DISPOSE_STARTED:",
+    "DISPOSE_RESUMED:",
+    "DISPOSE_DEFERRED:",
     "KIT_HOME_DONE:",
     "KIT_RETURNED_HOME:",
     "KIT_STATUS:",
@@ -276,7 +299,14 @@ def _drain_stale_serial_lines(ser, drain_seconds=0.30):
     return drained
 
 
-def _read_replies(ser, timeout, wait_for_prefixes=None, wait_for_lines=None):
+def _read_replies(
+    ser,
+    timeout,
+    wait_for_prefixes=None,
+    wait_for_lines=None,
+    cancel_event=None,
+    cancel_command=None,
+):
     """
     Read Arduino replies.
 
@@ -290,7 +320,41 @@ def _read_replies(ser, timeout, wait_for_prefixes=None, wait_for_lines=None):
     wait_for_lines = set(_normalize_markers(wait_for_lines))
     has_specific_target = bool(wait_for_prefixes or wait_for_lines)
 
+    cancel_sent = False
+
     while time.time() - start < timeout:
+        if cancel_event is not None and cancel_event.is_set() and not cancel_sent:
+            cancel_sent = True
+            cancel_line = "CANCEL_REQUESTED:DISPOSAL_DEFERRED"
+            replies.append(cancel_line)
+            print(f"[SERIAL] {cancel_line}", flush=True)
+
+            if cancel_command:
+                try:
+                    if not str(cancel_command).endswith("\n"):
+                        cancel_command = str(cancel_command) + "\n"
+                    ser.write(str(cancel_command).encode("utf-8"))
+                    ser.flush()
+                    print(f"[SERIAL] Sent cancel: {str(cancel_command).strip()}", flush=True)
+                except Exception as e:
+                    print(f"[SERIAL] Cancel command failed: {e}", flush=True)
+
+            cancel_deadline = time.time() + 2.5
+            while time.time() < cancel_deadline:
+                raw_cancel = ser.readline()
+                if not raw_cancel:
+                    continue
+                cancel_reply = raw_cancel.decode("utf-8", errors="ignore").strip()
+                if not cancel_reply:
+                    continue
+                replies.append(cancel_reply)
+                print(f"[SERIAL] Reply after cancel: {cancel_reply}", flush=True)
+                upper_cancel = _upper(cancel_reply)
+                if upper_cancel == "STOP_ALL" or _is_failure_line(upper_cancel):
+                    break
+
+            break
+
         raw = ser.readline()
 
         if not raw:
@@ -339,6 +403,8 @@ def _send_command_and_collect(
     timeout=SERIAL_TIMEOUT,
     wait_for_prefixes=None,
     wait_for_lines=None,
+    cancel_event=None,
+    cancel_command=None,
 ):
     if not command.endswith("\n"):
         command += "\n"
@@ -364,6 +430,8 @@ def _send_command_and_collect(
                     timeout=timeout,
                     wait_for_prefixes=wait_for_prefixes,
                     wait_for_lines=wait_for_lines,
+                    cancel_event=cancel_event,
+                    cancel_command=cancel_command,
                 )
 
                 return replies
@@ -1165,56 +1233,242 @@ def send_dispense_command(
 # RVM / TRASH
 # =====================================================
 
-def send_dispose_kit_command(timeout=None):
-    if timeout is None:
-        try:
-            from config_manager import config
+def _parse_trash_status_line(line):
+    """Parse TRASH_STATUS:key=value,key=value into a dictionary."""
+    raw = str(line or "").strip()
+    if not raw.upper().startswith("TRASH_STATUS:"):
+        return {}
 
-            timeout = int(config.get("kit_queue", "dispose_timeout_seconds", default=45))
-        except Exception:
-            timeout = DISPOSE_TIMEOUT_SECONDS
+    body = raw.split(":", 1)[1]
+    parsed = {}
 
+    for token in body.split(","):
+        token = token.strip()
+        if not token or "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        parsed[key.strip().lower()] = value.strip()
+
+    active = str(parsed.get("active", "")).upper() == "YES"
+    deferred = str(parsed.get("deferred", "")).upper() == "YES"
+    phase = str(parsed.get("phase", "")).upper()
+
+    try:
+        remaining_steps = int(parsed.get("remaining_steps", "0") or 0)
+    except Exception:
+        remaining_steps = 0
+
+    completed = (not active) and (not deferred) and phase in {"", "IDLE"} and remaining_steps <= 0
+
+    return {
+        "raw": raw,
+        "fields": parsed,
+        "active": active,
+        "deferred": deferred,
+        "phase": phase,
+        "remaining_steps": remaining_steps,
+        "completed": completed,
+    }
+
+
+def get_dispose_status(timeout=3):
+    """Read current trash/RVM disposal status from the revised Arduino sketch.
+
+    The revised Arduino may print DISPOSED:TRASH asynchronously after an earlier
+    DISPOSE_KIT command. We therefore treat either DISPOSED:TRASH or a
+    TRASH_STATUS line with ACTIVE=NO, DEFERRED=NO, PHASE=IDLE,
+    REMAINING_STEPS=0 as completed.
+    """
     replies = _send_command_and_collect(
-        "DISPOSE_KIT\n",
+        "DISPOSE_STATUS\n",
         timeout=timeout,
-        wait_for_prefixes=("DISPOSED:",),
+        wait_for_prefixes=("TRASH_STATUS:",),
         wait_for_lines={"BUSY"},
     )
 
-    got_ok = False
+    status_payload = None
     disposed_line = None
+    deferred_line = None
     error_line = None
     busy = False
 
     for line in replies:
         upper = _upper(line)
 
-        if upper == "OK":
-            got_ok = True
-        elif upper == "BUSY":
+        if upper == "BUSY" or upper.startswith("BUSY:"):
             busy = True
+        elif upper.startswith("TRASH_STATUS:"):
+            status_payload = _parse_trash_status_line(line)
         elif upper.startswith("DISPOSED:"):
             disposed_line = line
+        elif upper.startswith("DISPOSE_DEFERRED:"):
+            deferred_line = line
         elif _is_failure_line(upper):
             error_line = line
 
+    if error_line:
+        return _error_result(_translate_arduino_error(error_line), replies)
+
+    if status_payload:
+        return _success_result(
+            status_payload.get("raw") or "TRASH_STATUS",
+            replies,
+            **status_payload,
+            async_disposed=bool(disposed_line),
+            deferred_line=deferred_line,
+        )
+
+    if disposed_line:
+        return _success_result(
+            disposed_line,
+            replies,
+            active=False,
+            deferred=False,
+            phase="IDLE",
+            remaining_steps=0,
+            completed=True,
+            async_disposed=True,
+        )
+
+    if deferred_line:
+        return _success_result(
+            deferred_line,
+            replies,
+            active=False,
+            deferred=True,
+            phase="DEFERRED",
+            remaining_steps=None,
+            completed=False,
+            deferred_line=deferred_line,
+        )
+
     if busy:
+        return _error_result(_translate_arduino_error("BUSY"), replies)
+
+    return _error_result("No valid trash disposal status received from Arduino.", replies)
+
+
+def send_dispose_kit_command(timeout=None):
+    """Start or resume low-priority RVM disposal without waiting for completion.
+
+    This matches the revised Arduino firmware:
+      DISPOSE_KIT -> OK + DISPOSE_STARTED:TRASH / DISPOSE_RESUMED:TRASH
+      later, asynchronously -> DISPOSED:TRASH
+
+    The old Raspi code waited for DISPOSED:TRASH here and held _SERIAL_LOCK for
+    the entire motor movement. That defeated the non-blocking Arduino update.
+    This function now releases the serial lock immediately after the start/resume
+    acknowledgement. Use get_dispose_status() to poll for completion.
+    """
+    if timeout is None:
+        timeout = 4
+
+    if is_disposal_cancel_requested():
+        return _error_result(
+            "Trash disposal deferred because the booth currently needs Arduino serial.",
+            ["CANCEL_REQUESTED:DISPOSAL_DEFERRED"],
+            deferred=True,
+            started=False,
+            completed=False,
+        )
+
+    replies = _send_command_and_collect(
+        "DISPOSE_KIT\n",
+        timeout=timeout,
+        wait_for_prefixes=(
+            "DISPOSE_STARTED:",
+            "DISPOSE_RESUMED:",
+            "DISPOSED:",
+            "DISPOSE_DEFERRED:",
+            "BUSY:",
+        ),
+        wait_for_lines={"BUSY"},
+    )
+
+    got_ok = False
+    started_line = None
+    resumed_line = None
+    disposed_line = None
+    deferred_line = None
+    error_line = None
+    busy_line = None
+
+    for line in replies:
+        upper = _upper(line)
+
+        if upper == "OK":
+            got_ok = True
+        elif upper == "BUSY" or upper.startswith("BUSY:"):
+            busy_line = line
+        elif upper.startswith("DISPOSE_STARTED:"):
+            started_line = line
+        elif upper.startswith("DISPOSE_RESUMED:"):
+            resumed_line = line
+        elif upper.startswith("DISPOSED:"):
+            disposed_line = line
+        elif upper.startswith("DISPOSE_DEFERRED:"):
+            deferred_line = line
+        elif _is_failure_line(upper):
+            error_line = line
+
+    if deferred_line:
+        return _error_result(
+            "Trash disposal was deferred by Arduino.",
+            replies,
+            deferred=True,
+            started=False,
+            completed=False,
+        )
+
+    if busy_line:
+        # BUSY:DISPOSING means disposal is already active; treat as started so
+        # the queue worker can poll DISPOSE_STATUS instead of failing the job.
+        if _upper(busy_line).startswith("BUSY:DISPOSING"):
+            return _success_result(
+                busy_line,
+                replies,
+                started=True,
+                resumed=True,
+                completed=False,
+                already_active=True,
+            )
         return _error_result(_translate_arduino_error("BUSY"), replies)
 
     if error_line:
         return _error_result(_translate_arduino_error(error_line), replies)
 
     if disposed_line:
-        return _success_result(disposed_line, replies)
-
-    if got_ok:
-        return _error_result(
-            "Command accepted, but no final DISPOSED confirmation was received.",
+        return _success_result(
+            disposed_line,
             replies,
+            started=True,
+            completed=True,
+            active=False,
         )
 
-    return _error_result("No valid trash disposal response received from Arduino.", replies)
+    if started_line or resumed_line:
+        line = started_line or resumed_line
+        return _success_result(
+            line,
+            replies,
+            started=True,
+            resumed=bool(resumed_line),
+            completed=False,
+            active=True,
+        )
 
+    if got_ok:
+        # Some sketches may only send OK before starting. Treat it as accepted,
+        # then the queue worker will verify using DISPOSE_STATUS.
+        return _success_result(
+            "DISPOSE_KIT accepted by Arduino.",
+            replies,
+            started=True,
+            completed=False,
+            active=True,
+        )
+
+    return _error_result("No valid trash disposal start/resume response received from Arduino.", replies)
 
 def stop_all():
     replies = _send_command_and_collect(

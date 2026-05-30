@@ -1,3 +1,4 @@
+import os
 import time
 import random
 import string
@@ -7,52 +8,96 @@ import textwrap
 from serial import Serial
 from serial.tools import list_ports
 
-DEFAULT_BAUD = 9600
-PRINTER_NAME = "CONFIDEX"
-EMAIL = "confidex@gmail.com"
-WEBSITE = "https://irretraceably-chirographical-shayne.ngrok-free.dev"
 
-PREFERRED_PRINTER_PORT = None
+def _env_int(name, default, min_value=None, max_value=None):
+    raw = os.getenv(name, "").strip()
+
+    try:
+        value = int(raw) if raw else int(default)
+    except Exception:
+        value = int(default)
+
+    if min_value is not None:
+        value = max(int(min_value), value)
+
+    if max_value is not None:
+        value = min(int(max_value), value)
+
+    return value
+
+
+DEFAULT_BAUD = _env_int("PRINTER_BAUD", 9600, 1200, 115200)
+
+PRINTER_NAME = os.getenv("PRINTER_NAME", "CONFIDEX").strip() or "CONFIDEX"
+EMAIL = os.getenv("PRINTER_EMAIL", "confidex@gmail.com").strip() or "confidex@gmail.com"
+
+WEBSITE = (
+    os.getenv("WEBSITE_BASE_URL", "").strip()
+    or os.getenv("PRINTER_WEBSITE", "").strip()
+    or "https://irretraceably-chirographical-shayne.ngrok-free.dev"
+)
+
+# Best value in .env.local:
+# THERMAL_PRINTER_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
+PREFERRED_PRINTER_PORT = os.getenv("THERMAL_PRINTER_PORT", "").strip() or None
 
 # =========================
 # EM5820 / 5822-2007 tuning
 # =========================
-PRINTER_LINE_WIDTH = 32
+PRINTER_LINE_WIDTH = _env_int("PRINTER_LINE_WIDTH", 32, 24, 48)
 
 # ESC 7 n1 n2 n3
-# n1 = max heating dots (0-255, practical 7..11 for small mechanisms)
+# n1 = max heating dots
 # n2 = heating time
 # n3 = heating interval
-#
-# For weak / gray prints, n2 is the most important.
-# These values are intentionally stronger than default.
-HEAT_DOTS = 10
-HEAT_TIME = 0xC8   # 200
-HEAT_INTERVAL = 0x02
+HEAT_DOTS = _env_int("PRINTER_HEAT_DOTS", 10, 1, 255)
+HEAT_TIME = _env_int("PRINTER_HEAT_TIME", 0xC8, 1, 255)
+HEAT_INTERVAL = _env_int("PRINTER_HEAT_INTERVAL", 0x02, 0, 255)
 
-# Some clones respond to DC2 # n for density. Not all do.
-# Safe to try; ignored by unsupported units.
-PRINT_DENSITY = 15   # 0..15
-PRINT_BREAK_TIME = 7 # 0..7
+# DC2 # n density command for many mini thermal printers.
+PRINT_DENSITY = _env_int("PRINTER_DENSITY", 15, 0, 15)
+PRINT_BREAK_TIME = _env_int("PRINTER_BREAK_TIME", 7, 0, 7)
 
 # QR tuning
-QR_MODULE_SIZE = 7
+QR_MODULE_SIZE = _env_int(
+    "PRINTER_QR_MODULE_SIZE",
+    10,
+    4,
+    18
+)
+
 # ESC/POS QR error correction:
 # 48=L, 49=M, 50=Q, 51=H
-QR_EC_LEVEL = 51  # H = highest recovery
+QR_EC_LEVEL = _env_int("PRINTER_QR_EC_LEVEL", 51, 48, 51)
+
+if QR_EC_LEVEL not in (48, 49, 50, 51):
+    QR_EC_LEVEL = 51
+
+# This is the long blank space after the coupon.
+# Add this to .env.local if you want to tune without changing code:
+# PRINTER_TRAILING_BLANK_LINES=12
+TRAILING_BLANK_LINES = _env_int(
+    "PRINTER_TRAILING_BLANK_LINES",
+    80,
+    0,
+    200
+)
 
 
 def generate_token(user_id=None, length=12):
     chars = string.ascii_uppercase + string.digits
-    random_part = ''.join(random.choices(chars, k=length))
+    random_part = "".join(random.choices(chars, k=length))
+
     if user_id:
         return f"{str(user_id)[:6]}-{random_part}"
+
     return random_part
 
 
 def _safe_text(value):
     if value is None:
-        return ''
+        return ""
+
     return str(value)
 
 
@@ -70,42 +115,65 @@ def _write(ser, cmd: bytes, delay=0.08):
 
 
 def _feed(ser, lines=1, delay=0.08):
+    """
+    Feed blank paper safely.
+
+    Large feeds are split because some thermal printers
+    become unstable with a huge single write.
+    """
+
+    lines = int(lines or 0)
+
     if lines <= 0:
         return
-    _write(ser, b"\n" * lines, delay)
+
+    chunk_size = 8
+    remaining = lines
+
+    while remaining > 0:
+        chunk = min(chunk_size, remaining)
+
+        _write(
+            ser,
+            b"\n" * chunk,
+            delay
+        )
+
+        remaining -= chunk
 
 
 def _center(ser):
-    _write(ser, b'\x1B\x61\x01', 0.06)
+    _write(ser, b"\x1B\x61\x01", 0.06)
 
 
 def _left(ser):
-    _write(ser, b'\x1B\x61\x00', 0.06)
+    _write(ser, b"\x1B\x61\x00", 0.06)
 
 
 def _right(ser):
-    _write(ser, b'\x1B\x61\x02', 0.06)
+    _write(ser, b"\x1B\x61\x02", 0.06)
 
 
 def _big(ser, on=True):
-    _write(ser, b'\x1B\x21' + (b'\x30' if on else b'\x00'), 0.06)
+    _write(ser, b"\x1B\x21" + (b"\x30" if on else b"\x00"), 0.06)
 
 
 def _bold(ser, on=True):
-    _write(ser, b'\x1B\x45' + (b'\x01' if on else b'\x00'), 0.06)
+    _write(ser, b"\x1B\x45" + (b"\x01" if on else b"\x00"), 0.06)
 
 
 def _normal(ser):
-    _write(ser, b'\x1B\x21\x00', 0.06)
+    _write(ser, b"\x1B\x21\x00", 0.06)
     _bold(ser, False)
 
 
 def _set_line_spacing_default(ser):
-    _write(ser, b'\x1B\x32', 0.06)
+    _write(ser, b"\x1B\x32", 0.06)
 
 
 def _set_line_spacing(ser, n=30):
-    _write(ser, b'\x1B\x33' + bytes([max(0, min(255, int(n)))]), 0.06)
+    n = max(0, min(255, int(n)))
+    _write(ser, b"\x1B\x33" + bytes([n]), 0.06)
 
 
 def _looks_like_arduino(port_info):
@@ -121,10 +189,10 @@ def _looks_like_arduino(port_info):
         "arduino",
         "uno",
         "mega",
-        "wch",
-        "ch340",
-        "cp210",
-        "acm",
+        "genuino",
+        "ttyacm",
+        "2341",
+        "2a03",
     ]
 
     return any(word in text for word in arduino_keywords)
@@ -149,12 +217,16 @@ def _looks_like_printer(port_info):
         "usb-serial",
         "serial",
         "uart",
-        "ch340",
         "cp210",
+        "cp2102",
         "pl2303",
         "ftdi",
+        "ch340",
+        "ch341",
         "qinhen",
         "wch",
+        "silicon labs",
+        "silicon_labs",
     ]
 
     return any(word in text for word in printer_keywords)
@@ -162,6 +234,7 @@ def _looks_like_printer(port_info):
 
 def list_serial_devices():
     devices = []
+
     for p in list_ports.comports():
         devices.append({
             "device": p.device,
@@ -172,17 +245,41 @@ def list_serial_devices():
             "vid": p.vid,
             "pid": p.pid,
         })
+
     return devices
 
 
 def _find_printer_port():
     if PREFERRED_PRINTER_PORT:
-        return PREFERRED_PRINTER_PORT
+        if os.path.exists(PREFERRED_PRINTER_PORT):
+            return PREFERRED_PRINTER_PORT
+
+        raise RuntimeError(
+            f"THERMAL_PRINTER_PORT is set but does not exist: {PREFERRED_PRINTER_PORT}"
+        )
 
     by_id_ports = sorted(glob.glob("/dev/serial/by-id/*"))
+
     if by_id_ports:
         for stable_port in by_id_ports:
             lowered = stable_port.lower()
+
+            if "arduino" in lowered or "genuino" in lowered or "uno" in lowered:
+                continue
+
+            if (
+                "cp210" in lowered
+                or "silicon" in lowered
+                or "ch340" in lowered
+                or "usb_to_uart" in lowered
+                or "uart" in lowered
+                or "serial" in lowered
+            ):
+                return stable_port
+
+        for stable_port in by_id_ports:
+            lowered = stable_port.lower()
+
             if "arduino" not in lowered and "uno" not in lowered:
                 return stable_port
 
@@ -194,79 +291,96 @@ def _find_printer_port():
 
     for p in ports:
         dev = _safe_text(p.device)
+
         if dev.startswith("/dev/ttyUSB") and not _looks_like_arduino(p):
             return dev
 
     for p in ports:
         dev = _safe_text(p.device)
-        if (dev.startswith("/dev/ttyAMA") or dev.startswith("/dev/ttyS")) and not _looks_like_arduino(p):
+
+        if (
+            dev.startswith("/dev/ttyAMA")
+            or dev.startswith("/dev/ttyS")
+        ) and not _looks_like_arduino(p):
             return dev
 
     raise RuntimeError(
         "No thermal printer serial port found. "
-        "Run list_serial_devices() and set PREFERRED_PRINTER_PORT to the correct device."
+        "Run debug_list_serial_devices() and set THERMAL_PRINTER_PORT in .env.local."
     )
 
 
 def _open_printer_serial(com_port=None, baud=DEFAULT_BAUD):
     port = com_port or _find_printer_port()
+
     print(f"[PRINTER] Opening printer port {port} at {baud}", flush=True)
 
     ser = Serial(
         port=port,
         baudrate=baud,
         timeout=2,
-        write_timeout=2
+        write_timeout=2,
     )
 
     time.sleep(1.0)
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
+
+    try:
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+    except Exception:
+        pass
+
     return ser
 
 
 def _init_printer(ser):
     print("[PRINTER] Initializing printer with darker settings", flush=True)
 
-    # Reset
-    _write(ser, b'\x1B\x40', 0.20)
+    # Reset printer
+    _write(ser, b"\x1B\x40", 0.20)
 
     # EM5820 stronger heating config
     _write(
         ser,
-        b'\x1B\x37' + bytes([HEAT_DOTS, HEAT_TIME, HEAT_INTERVAL]),
-        0.20
+        b"\x1B\x37" + bytes([HEAT_DOTS, HEAT_TIME, HEAT_INTERVAL]),
+        0.20,
     )
 
     # Optional density command supported by many mini thermal clones:
-    # DC2 # n  where n = (break_time << 5) | density
+    # DC2 # n where n = (break_time << 5) | density
     density_byte = ((PRINT_BREAK_TIME & 0x07) << 5) | (PRINT_DENSITY & 0x0F)
-    _write(ser, b'\x12\x23' + bytes([density_byte]), 0.20)
+    _write(ser, b"\x12\x23" + bytes([density_byte]), 0.20)
 
     _left(ser)
     _normal(ser)
     _set_line_spacing_default(ser)
     _feed(ser, 1, 0.10)
+
     time.sleep(0.30)
 
 
 def _wrap_text(text, width=PRINTER_LINE_WIDTH):
     raw = _safe_text(text)
+
     if not raw:
         return [""]
 
     lines = []
+
     for part in raw.splitlines() or [""]:
         if not part.strip():
             lines.append("")
             continue
+
         wrapped = textwrap.wrap(
             part,
             width=width,
             break_long_words=True,
-            break_on_hyphens=False
+            break_on_hyphens=False,
         )
+
         lines.extend(wrapped if wrapped else [""])
+
     return lines
 
 
@@ -279,64 +393,142 @@ def _print_lines(ser, lines, align="left", delay=0.03):
         _left(ser)
 
     for line in lines:
-        _write(ser, (line + "\n").encode("ascii", errors="ignore"), delay)
+        _write(
+            ser,
+            (line + "\n").encode("ascii", errors="ignore"),
+            delay,
+        )
 
 
 def _print_wrapped_line(ser, text, align="left", delay=0.03):
-    _print_lines(ser, _wrap_text(text), align=align, delay=delay)
+    _print_lines(
+        ser,
+        _wrap_text(text),
+        align=align,
+        delay=delay,
+    )
 
 
 def _print_separator(ser, char="-", count=PRINTER_LINE_WIDTH):
     _left(ser)
-    _write(ser, (char * count + "\n").encode("ascii", errors="ignore"), 0.03)
+    _write(
+        ser,
+        (char * count + "\n").encode("ascii", errors="ignore"),
+        0.03,
+    )
 
 
-def _print_qr(ser, data: str, module_size=QR_MODULE_SIZE, ec_level=QR_EC_LEVEL):
-    qr_data = _safe_text(data).encode("ascii", errors="ignore")
+def _print_qr(
+    ser,
+    data: str,
+    module_size=QR_MODULE_SIZE,
+    ec_level=QR_EC_LEVEL
+):
+    qr_data = _safe_text(data).encode(
+        "ascii",
+        errors="ignore"
+    )
+
     if not qr_data:
-        raise ValueError("QR data is empty")
+        raise ValueError("QR data empty")
 
-    module_size = max(4, min(16, int(module_size)))
+    module_size = max(
+        4,
+        min(
+            18,
+            int(module_size)
+        )
+    )
+
     ec_level = int(ec_level)
-    if ec_level not in (48, 49, 50, 51):
+
+    if ec_level not in (48,49,50,51):
         ec_level = 51
 
     print(
-        f"[PRINTER] Printing QR | bytes={len(qr_data)} | module_size={module_size} | ec={ec_level}",
+        f"[PRINTER] Printing QR "
+        f"bytes={len(qr_data)} "
+        f"size={module_size}",
         flush=True
     )
 
     _center(ser)
 
-    # Model 2
-    _write(ser, b'\x1D\x28\x6B\x04\x00\x31\x41\x32\x00', 0.20)
-
-    # Module size
-    _write(ser, b'\x1D\x28\x6B\x03\x00\x31\x43' + bytes([module_size]), 0.20)
-
-    # Error correction
-    _write(ser, b'\x1D\x28\x6B\x03\x00\x31\x45' + bytes([ec_level]), 0.20)
-
-    # Store data
-    total_len = len(qr_data) + 3
-    pL = total_len & 0xFF
-    pH = (total_len >> 8) & 0xFF
+    # QR Model 2
     _write(
         ser,
-        b'\x1D\x28\x6B' + bytes([pL, pH]) + b'\x31\x50\x30' + qr_data,
+        b"\x1D\x28\x6B\x04\x00\x31\x41\x32\x00",
+        0.2
+    )
+
+    # Bigger QR
+    _write(
+        ser,
+        b"\x1D\x28\x6B\x03\x00\x31\x43"
+        + bytes([module_size]),
+        0.2
+    )
+
+    # Error correction
+    _write(
+        ser,
+        b"\x1D\x28\x6B\x03\x00\x31\x45"
+        + bytes([ec_level]),
+        0.2
+    )
+
+    total_len = len(qr_data)+3
+
+    pL = total_len & 0xFF
+    pH = (total_len >> 8) & 0xFF
+
+    _write(
+        ser,
+        b"\x1D\x28\x6B"
+        + bytes([pL,pH])
+        + b"\x31\x50\x30"
+        + qr_data,
         0.35
     )
 
-    # Print
-    _write(ser, b'\x1D\x28\x6B\x03\x00\x31\x51\x30', 1.50)
-    _feed(ser, 1, 0.15)
+    _write(
+        ser,
+        b"\x1D\x28\x6B\x03\x00\x31\x51\x30",
+        1.5
+    )
+
+    # Added space around QR
+    _feed(
+        ser,
+        4,
+        0.12
+    )
 
 
 def _finalize_print(ser):
     _normal(ser)
     _left(ser)
-    _feed(ser, 4, 0.20)
+
+    print(
+        f"[PRINTER] Feeding "
+        f"{TRAILING_BLANK_LINES} "
+        f"blank lines",
+        flush=True
+    )
+
+    _set_line_spacing_default(ser)
+
+    # Huge paper tail
+    _feed(
+        ser,
+        TRAILING_BLANK_LINES,
+        0.12
+    )
+
+    _set_line_spacing_default(ser)
+
     ser.flush()
+
     time.sleep(2.0)
 
 
@@ -345,53 +537,111 @@ def print_discount_qr(token: str, com_port=None, baud=DEFAULT_BAUD):
     Prints only the discount QR coupon.
     No purchase details are printed.
     """
+
     ser = None
+
     try:
         ser = _open_printer_serial(com_port=com_port, baud=baud)
         _init_printer(ser)
 
-        print('[PRINTER] Printing QR-only coupon header', flush=True)
+        print("[PRINTER] Printing QR-only coupon header", flush=True)
 
         _center(ser)
         _big(ser, True)
         _bold(ser, True)
-        _print_wrapped_line(ser, PRINTER_NAME, align="center", delay=0.08)
+        _print_wrapped_line(
+            ser,
+            PRINTER_NAME,
+            align="center",
+            delay=0.08,
+        )
 
         _normal(ser)
-        _print_wrapped_line(ser, EMAIL, align="center", delay=0.08)
+        _print_wrapped_line(
+            ser,
+            EMAIL,
+            align="center",
+            delay=0.08,
+        )
+
         _feed(ser, 1, 0.08)
 
         _bold(ser, True)
-        _print_wrapped_line(ser, "DISCOUNT COUPON", align="center", delay=0.08)
+        _print_wrapped_line(
+            ser,
+            "DISCOUNT COUPON",
+            align="center",
+            delay=0.08,
+        )
+
         _normal(ser)
-        _print_wrapped_line(ser, "Scan this QR on your next use", align="center", delay=0.08)
+        _print_wrapped_line(
+            ser,
+            "Scan this QR on your next use",
+            align="center",
+            delay=0.08,
+        )
+
         _feed(ser, 1, 0.08)
 
-        print('[PRINTER] Printing QR-only coupon QR', flush=True)
-        _print_qr(ser, token, module_size=QR_MODULE_SIZE, ec_level=QR_EC_LEVEL)
+        print("[PRINTER] Printing QR-only coupon QR", flush=True)
+        _print_qr(
+            ser,
+            token,
+            module_size=QR_MODULE_SIZE,
+            ec_level=QR_EC_LEVEL,
+        )
 
-        print('[PRINTER] Printing QR-only coupon footer', flush=True)
-        _print_wrapped_line(ser, "This code is one-time use only", align="left", delay=0.08)
-        _print_wrapped_line(ser, "and will expire after 3 months.", align="left", delay=0.08)
-        _print_wrapped_line(ser, "Keep this paper for your next purchase.", align="left", delay=0.08)
+        print("[PRINTER] Printing QR-only coupon footer", flush=True)
+
+        _print_wrapped_line(
+            ser,
+            "This code is one-time use only",
+            align="left",
+            delay=0.08,
+        )
+        _print_wrapped_line(
+            ser,
+            "and will expire after 3 months.",
+            align="left",
+            delay=0.08,
+        )
+        _print_wrapped_line(
+            ser,
+            "Keep this paper for your next purchase.",
+            align="left",
+            delay=0.08,
+        )
+
         _feed(ser, 1, 0.08)
-        _print_wrapped_line(ser, f"Visit: {WEBSITE}", align="left", delay=0.08)
+
+        _print_wrapped_line(
+            ser,
+            f"Visit: {WEBSITE}",
+            align="left",
+            delay=0.08,
+        )
 
         _finalize_print(ser)
 
-        print('[PRINTER] QR-only coupon printed successfully', flush=True)
+        print("[PRINTER] QR-only coupon printed successfully", flush=True)
         return True
 
     except Exception as e:
-        print(f'[PRINTER] Printer error in print_discount_qr: {e}', flush=True)
+        print(f"[PRINTER] Printer error in print_discount_qr: {e}", flush=True)
         return False
 
     finally:
         if ser and ser.is_open:
-            ser.close()
+            try:
+                ser.close()
+            except Exception:
+                pass
+
 
 def debug_list_serial_devices():
     print("[SERIAL] Available serial devices:", flush=True)
+
     for dev in list_serial_devices():
         print(
             f"  device={dev['device']} | "
@@ -399,5 +649,10 @@ def debug_list_serial_devices():
             f"manufacturer={dev['manufacturer']} | "
             f"product={dev['product']} | "
             f"hwid={dev['hwid']}",
-            flush=True
+            flush=True,
         )
+
+
+def debug_print_test_coupon():
+    token = generate_token("DEBUG")
+    return print_discount_qr(token)

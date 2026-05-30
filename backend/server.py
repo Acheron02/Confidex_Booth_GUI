@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 
 app = FastAPI(title="Confidex Local Pi API")
 
-ROOT = Path("/home/code200/Confidex_GUI")
+ROOT = Path(__file__).resolve().parents[1]
 CAPTURES_DIR = ROOT / "captures"
 
 

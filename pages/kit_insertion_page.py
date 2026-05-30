@@ -6,12 +6,19 @@ from frontend import theme
 from frontend.widgets import AppShell, RoundedCard, PillButton, card_body
 from backend.util.capture_manager import get_or_create_capture_session
 from config_manager import config
+from backend.payment_recovery import mark_payment_completed
+from backend.system_events import report_error, report_warning
 
 try:
-    from backend.util.kit_queue_worker import enqueue_kit_job, get_latest_queue_frame
+    from backend.util.kit_queue_worker import (
+        enqueue_kit_job,
+        get_latest_queue_frame,
+        get_queue_job_by_transaction,
+    )
 except Exception as import_error:
     enqueue_kit_job = None
     get_latest_queue_frame = None
+    get_queue_job_by_transaction = None
     _KIT_QUEUE_IMPORT_ERROR = import_error
 else:
     _KIT_QUEUE_IMPORT_ERROR = None
@@ -102,11 +109,18 @@ class KitInsertionPage(ctk.CTkFrame):
         self.user_data = {}
         self.selected_product = None
         self.transaction_id = None
+        self.payment_session_id = None
 
         self._config_refresh_job = None
         self._preview_job = None
         self._camera_imgtk = None
         self._busy = False
+        self._queue_retry_job = None
+        self._queue_retry_count = 0
+        self._queued_job = None
+        self._preview_error_count = 0
+        self.MAX_QUEUE_RETRIES = int(config.get("kit_insertion_page", "queue_retry_max_attempts", default=5))
+        self.QUEUE_RETRY_DELAY_MS = int(config.get("kit_insertion_page", "queue_retry_delay_ms", default=3000))
 
         self._step_cards = []
         self._step_title_labels = []
@@ -553,7 +567,19 @@ class KitInsertionPage(ctk.CTkFrame):
         try:
             self._update_shared_preview()
         except Exception as e:
+            self._preview_error_count += 1
             print(f"[KIT] Preview update failed: {e}", flush=True)
+            if self._preview_error_count in {5, 20, 60}:
+                try:
+                    report_warning(
+                        "kit_insertion",
+                        "Camera Preview Recovering",
+                        "The booth camera preview is temporarily unavailable. The system is retrying automatically.",
+                        details={"error": str(e), "attempts": self._preview_error_count},
+                        visible=True,
+                    )
+                except Exception:
+                    pass
         finally:
             self._preview_job = self.after(self.PREVIEW_MS, self._preview_loop)
 
@@ -615,12 +641,15 @@ class KitInsertionPage(ctk.CTkFrame):
 
             self._camera_imgtk = ImageTk.PhotoImage(canvas)
             self.camera_label.configure(image=self._camera_imgtk, text="")
+            self._preview_error_count = 0
 
             state = str((meta or {}).get("state") or "live").strip().lower()
             message = str((meta or {}).get("message") or "").strip()
 
             if state in ("processing", "capturing", "analyzing", "disposing", "uploading"):
                 self._set_camera_badge("Processing", "warning")
+            elif state in ("dispose_pending", "upload_pending", "retrying"):
+                self._set_camera_badge("Pending", "warning")
             elif state in ("result_ready", "completed", "disposed"):
                 self._set_camera_badge("Done", "success")
             elif state in ("error", "camera_error", "worker_error"):
@@ -833,6 +862,68 @@ class KitInsertionPage(ctk.CTkFrame):
             or ""
         )
 
+    def _cancel_queue_retry(self):
+        if self._queue_retry_job:
+            try:
+                self.after_cancel(self._queue_retry_job)
+            except Exception:
+                pass
+            self._queue_retry_job = None
+
+    def _schedule_queue_retry(self, error):
+        self._cancel_queue_retry()
+
+        if self._queue_retry_count >= self.MAX_QUEUE_RETRIES:
+            self._set_status(
+                confirm_text="",
+                result_text="The booth could not queue the kit automatically. Please call an operator, then tap Retry / Continue.",
+                result_color=ERROR,
+            )
+            return
+
+        self._queue_retry_count += 1
+        delay_ms = max(1000, int(self.QUEUE_RETRY_DELAY_MS))
+        self._set_status(
+            confirm_text=(
+                f"Temporary queue issue. Retrying automatically "
+                f"({self._queue_retry_count}/{self.MAX_QUEUE_RETRIES})..."
+            ),
+            result_text=str(error),
+            confirm_color=INFO,
+            result_color=ERROR,
+        )
+        self._set_camera_badge("Retrying queue", "warning")
+        self._queue_retry_job = self.after(delay_ms, self._retry_queue_after_error)
+
+    def _retry_queue_after_error(self):
+        self._queue_retry_job = None
+        self._busy = False
+        try:
+            self.insert_btn.configure(state="normal")
+        except Exception:
+            pass
+        self.confirm_insertion()
+
+    def recover_from_error(self):
+        """Manual Retry / Continue action used by the global error dialog."""
+        self._cancel_queue_retry()
+        self._busy = False
+        try:
+            self.insert_btn.configure(state="normal")
+        except Exception:
+            pass
+        self.start_camera()
+        self.confirm_insertion()
+
+    def schedule_auto_recovery(self, event=None):
+        """Let KitInsertionPage self-heal after recoverable queue/camera errors."""
+        if self._busy:
+            return
+        if self._queued_job:
+            return
+        if not self._queue_retry_job:
+            self._schedule_queue_retry((event or {}).get("message") or "Recovering kit insertion step.")
+
     def confirm_insertion(self):
         try:
             if self._busy:
@@ -843,6 +934,34 @@ class KitInsertionPage(ctk.CTkFrame):
                     "Kit queue worker is not available. "
                     f"Import error: {_KIT_QUEUE_IMPORT_ERROR}"
                 )
+
+            if self._queued_job:
+                self._set_camera_badge("Queued", "success")
+                self._set_status(
+                    confirm_text="Kit is already queued for analysis.",
+                    result_text=f"Your result will appear on the website after about {self._queue_delay_text()}.",
+                    confirm_color=SUCCESS,
+                    result_color=SUCCESS,
+                )
+                return
+
+            existing_tx = str(self._get_transaction_id()).strip()
+            if existing_tx and get_queue_job_by_transaction is not None:
+                existing_job = get_queue_job_by_transaction(existing_tx)
+                if existing_job:
+                    self._queued_job = existing_job
+                    self._set_camera_badge("Queued", "success")
+                    self._set_status(
+                        confirm_text="Kit is already queued for analysis.",
+                        result_text=f"Your result will appear on the website after about {self._queue_delay_text()}.",
+                        confirm_color=SUCCESS,
+                        result_color=SUCCESS,
+                    )
+                    self.after(
+                        int(config.get("kit_insertion_page", "logout_delay_ms", default=3000)),
+                        self.logout_user,
+                    )
+                    return
 
             self._busy = True
             self.insert_btn.configure(state="disabled")
@@ -887,6 +1006,10 @@ class KitInsertionPage(ctk.CTkFrame):
                 session_dir=str(session_dir),
             )
 
+            self._queued_job = job
+            self._queue_retry_count = 0
+            self._cancel_queue_retry()
+
             delay_text = self._queue_delay_text()
 
             self._set_camera_badge("Queued", "success")
@@ -898,6 +1021,12 @@ class KitInsertionPage(ctk.CTkFrame):
             )
 
             print(f"[KIT] Queued kit job: {job}", flush=True)
+
+            if self.payment_session_id:
+                try:
+                    mark_payment_completed(self.payment_session_id)
+                except Exception as e:
+                    print(f"[KIT] Failed to mark recovered payment completed: {e}", flush=True)
 
             self.after(
                 int(config.get("kit_insertion_page", "logout_delay_ms", default=3000)),
@@ -911,16 +1040,26 @@ class KitInsertionPage(ctk.CTkFrame):
             self.insert_btn.configure(state="normal")
             self._set_camera_badge("Queue error", "error")
 
-            self._set_status(
-                confirm_text="",
-                result_text="Failed to queue inserted kit.",
-                result_color=ERROR,
-            )
+            self._schedule_queue_retry(e)
+
+            try:
+                report_warning(
+                    "kit_insertion",
+                    "Kit Queue Error",
+                    "The booth could not queue the inserted kit yet. It will retry automatically.",
+                    details={"error": str(e), "transaction_id": self._get_transaction_id()},
+                    visible=True,
+                )
+            except Exception:
+                pass
 
             if hasattr(self.controller, "show_error"):
                 self.controller.show_error(
-                    f"Failed to queue inserted kit.\n{e}",
+                    f"Failed to queue inserted kit.\n{e}\n\nThe booth will retry automatically. Keep the kit inserted and wait, or tap Retry / Continue after the issue is fixed.",
                     title="Queue Error",
+                    action_text="Retry / Continue",
+                    on_action=self.recover_from_error,
+                    on_close=getattr(self.controller, "_close_error_only", None),
                 )
 
     # Backward compatible name.
@@ -954,6 +1093,7 @@ class KitInsertionPage(ctk.CTkFrame):
             or self.user_data.get("transactionID")
             or self.user_data.get("latest_transaction_id")
         )
+        self.payment_session_id = kwargs.get("payment_session_id") or self.user_data.get("payment_session_id")
 
         if self.transaction_id:
             self.user_data["transaction_id"] = self.transaction_id
@@ -966,6 +1106,9 @@ class KitInsertionPage(ctk.CTkFrame):
 
         self._busy = False
         self._camera_imgtk = None
+        self._queue_retry_count = 0
+        self._queued_job = None
+        self._cancel_queue_retry()
 
         self._set_status(
             result_text=config.get(
@@ -983,12 +1126,16 @@ class KitInsertionPage(ctk.CTkFrame):
 
     def logout_user(self):
         self.stop_camera()
+        self._cancel_queue_retry()
 
         self.user_data = {}
         self.selected_product = None
         self.transaction_id = None
         self._busy = False
         self._camera_imgtk = None
+        self._queue_retry_count = 0
+        self._queued_job = None
+        self._cancel_queue_retry()
 
         self._set_status(
             result_text=config.get(
@@ -1020,5 +1167,6 @@ class KitInsertionPage(ctk.CTkFrame):
     def destroy(self):
         self._cancel_config_refresh()
         self._cancel_preview_loop()
+        self._cancel_queue_retry()
         self.stop_camera()
         super().destroy()

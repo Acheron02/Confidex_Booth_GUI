@@ -2,13 +2,13 @@ import json
 import os
 import threading
 import time
+from urllib.parse import urlparse
 
 import websocket
 
 from backend.util import api_client
 from config_manager import config
-
-WS_URL = os.getenv("BOOTH_WS_URL", "").strip()
+from backend.system_events import report_warning
 
 PRESENCE_INTERVAL_SECONDS = 60
 RECONNECT_BASE_SECONDS = 3
@@ -18,17 +18,65 @@ ws_app = None
 ws_connected = False
 
 _last_sent_inventory = None
-_inventory_dirty = False
+_inventory_dirty = True
 _sync_lock = threading.RLock()
 
 _last_remote_config_version = None
 _last_remote_inventory_version = None
+_last_visible_ws_warning_at = 0
+_last_initial_sync_warning_at = 0
+
+
+def _clean(value):
+    return str(value or "").strip()
+
+
+def resolve_ws_url() -> str:
+    """Return BOOTH_WS_URL, or derive it from WEBSITE_BASE_URL/BASE_URL/networkIP."""
+    api_client.reload_env()
+
+    explicit = _clean(os.getenv("BOOTH_WS_URL"))
+    if explicit:
+        return explicit
+
+    base = (
+        _clean(os.getenv("WEBSITE_BASE_URL"))
+        or _clean(os.getenv("BASE_URL"))
+        or _clean(os.getenv("networkIP"))
+    )
+
+    if not base:
+        return ""
+
+    if not base.startswith("http://") and not base.startswith("https://"):
+        base = f"http://{base}"
+
+    parsed = urlparse(base)
+    if not parsed.netloc:
+        return ""
+
+    scheme = "wss" if parsed.scheme == "https" else "ws"
+    return f"{scheme}://{parsed.netloc}/ws"
 
 
 def build_inventory_snapshot():
     return {
         "products": config.get_inventory("products", default={}),
         "coins": config.get_inventory("coins", default={}),
+    }
+
+
+def build_local_config_snapshot():
+    return {
+        "products": config.get_products(),
+    }
+
+
+def build_presence_payload(status="online"):
+    return {
+        "status": status,
+        "config": build_local_config_snapshot(),
+        "inventorySnapshot": build_inventory_snapshot(),
     }
 
 
@@ -69,6 +117,8 @@ def _apply_remote_payload(data: dict, force: bool = False):
 
 
 def fetch_remote_config_once():
+    global _last_initial_sync_warning_at
+
     try:
         res = api_client.get_device_config()
         if not res.ok:
@@ -91,10 +141,38 @@ def fetch_remote_config_once():
 
     except Exception as e:
         print(f"[DEVICE WS] Initial sync error: {e}", flush=True)
+        now = time.time()
+        if now - _last_initial_sync_warning_at > 60:
+            _last_initial_sync_warning_at = now
+            report_warning(
+                "device_sync",
+                "Initial Website Sync Failed",
+                "The booth could not load the latest website config/inventory. Local cached config will be used.",
+                details=str(e),
+                visible=True,
+            )
         return False
 
 
-def flush_inventory_if_connected():
+def post_initial_presence_once():
+    """HTTP fallback used at startup so website gets booth products/stock even before WS auth."""
+    try:
+        res = api_client.post_device_presence(build_presence_payload("online"))
+        if res.ok:
+            print("[DEVICE WS] Initial presence/inventory heartbeat sent", flush=True)
+            return True
+
+        print(
+            f"[DEVICE WS] Initial heartbeat failed: {res.status_code} {res.text}",
+            flush=True,
+        )
+        return False
+    except Exception as e:
+        print(f"[DEVICE WS] Initial heartbeat error: {e}", flush=True)
+        return False
+
+
+def flush_inventory_if_connected(force: bool = False):
     global _inventory_dirty, _last_sent_inventory
 
     if not ws_app or not ws_connected:
@@ -104,10 +182,10 @@ def flush_inventory_if_connected():
         with _sync_lock:
             snapshot = build_inventory_snapshot()
 
-            if not _inventory_dirty:
+            if not force and not _inventory_dirty:
                 return True
 
-            if _last_sent_inventory == snapshot:
+            if not force and _last_sent_inventory == snapshot:
                 _inventory_dirty = False
                 return True
 
@@ -154,7 +232,7 @@ def push_inventory_if_dirty(force: bool = False):
                 return True
 
         if ws_app and ws_connected:
-            return flush_inventory_if_connected()
+            return flush_inventory_if_connected(force=force)
 
         res = api_client.post_device_inventory(
             {
@@ -194,6 +272,7 @@ def push_inventory_if_dirty(force: bool = False):
 
 
 def _send_auth(ws):
+    api_client.reload_env()
     payload = {
         "type": "auth",
         "apiKey": os.getenv("DEVICE_API_KEY", ""),
@@ -220,7 +299,7 @@ def on_message(ws, message):
         if msg_type == "auth_ok":
             print("[DEVICE WS] Authenticated", flush=True)
             _apply_remote_payload(data, force=True)
-            flush_inventory_if_connected()
+            flush_inventory_if_connected(force=True)
             return
 
         if msg_type == "config_updated":
@@ -268,7 +347,20 @@ def on_message(ws, message):
 
 
 def on_error(ws, error):
+    global _last_visible_ws_warning_at
+
     print(f"[DEVICE WS] Error: {error}", flush=True)
+
+    now = time.time()
+    if now - _last_visible_ws_warning_at > 30:
+        _last_visible_ws_warning_at = now
+        report_warning(
+            "device_sync",
+            "Website Connection Lost",
+            "The booth lost connection to the website. It will keep retrying automatically.",
+            details=str(error),
+            visible=True,
+        )
 
 
 def on_close(ws, close_status_code, close_msg):
@@ -302,9 +394,16 @@ def websocket_loop():
     reconnect_delay = RECONNECT_BASE_SECONDS
 
     while True:
+        ws_url = resolve_ws_url()
+
+        if not ws_url:
+            print("[DEVICE WS] Missing BOOTH_WS_URL and cannot derive it from WEBSITE_BASE_URL", flush=True)
+            time.sleep(RECONNECT_MAX_SECONDS)
+            continue
+
         try:
             ws_app = websocket.WebSocketApp(
-                WS_URL,
+                ws_url,
                 on_open=on_open,
                 on_message=on_message,
                 on_error=on_error,
@@ -326,10 +425,21 @@ def websocket_loop():
 
 
 def start_background_sync():
-    if not WS_URL:
+    ws_url = resolve_ws_url()
+
+    if not ws_url:
         print("[DEVICE WS] Missing BOOTH_WS_URL", flush=True)
+        report_warning(
+            "device_sync",
+            "Website WebSocket URL Missing",
+            "BOOTH_WS_URL is not set and the booth could not derive it from WEBSITE_BASE_URL. HTTP sync will still be attempted when possible.",
+            visible=True,
+        )
+    else:
+        print(f"[DEVICE WS] Using websocket endpoint: {ws_url}", flush=True)
 
     fetch_remote_config_once()
+    post_initial_presence_once()
 
     threading.Thread(target=presence_loop, daemon=True).start()
     threading.Thread(target=websocket_loop, daemon=True).start()

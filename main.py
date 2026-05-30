@@ -28,8 +28,20 @@ from backend.util.dispenser_serial import (
     reset_servos_to_rest,
     home_kit_actuators,
     get_kit_status,
+    request_disposal_cancel,
+    clear_disposal_cancel_request,
 )
 from backend.device_sync import start_background_sync
+from backend.system_events import drain_visible_events, report_error, report_warning
+from backend.payment_recovery import (
+    get_pending_payments_for_user,
+    update_payment_status,
+    mark_payment_completed,
+    build_transaction_payload_from_record,
+)
+from backend.flow_state import save_active_flow, clear_active_flow
+from backend.booth_activity import set_booth_activity, page_requires_arduino_serial
+from backend.util import api_client
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +67,7 @@ def start_fastapi():
         print(f"[FASTAPI] Started using {sys.executable} -m uvicorn", flush=True)
     except Exception as e:
         print(f"[FASTAPI] Failed to start: {e}", flush=True)
+        report_error("fastapi", "Local API Failed", f"Failed to start local booth API: {e}", visible=True)
 
 
 def ensure_servos_reset():
@@ -78,6 +91,7 @@ def ensure_servos_reset():
         return False
     except Exception as e:
         print(f"[STARTUP] Failed to reset servos to rest: {e}", flush=True)
+        report_warning("startup", "Servo Reset Failed", f"Unable to reset coin servos: {e}", visible=True)
         return False
 
 
@@ -96,6 +110,7 @@ def ensure_bill_acceptor_off():
         return False
     except Exception as e:
         print(f"[STARTUP] Failed to force bill acceptor OFF: {e}", flush=True)
+        report_warning("startup", "Bill Acceptor Reset Failed", f"Unable to force bill acceptor off: {e}", visible=True)
         return False
 
 
@@ -116,10 +131,11 @@ def ensure_kit_actuators_home():
         return bool(result.get("success"))
     except Exception as e:
         print(f"[STARTUP] Failed to home kit actuators: {e}", flush=True)
+        report_error("startup", "Kit Homing Failed", f"Unable to home kit actuators: {e}", visible=True)
         return False
 
 
-def start_startup_hardware_init():
+def start_startup_hardware_init(app=None):
     """
     Run serial startup tasks without blocking the GUI.
 
@@ -129,11 +145,24 @@ def start_startup_hardware_init():
       3. HOME_KITS
       4. KIT_STATUS
 
-    This prevents the app from freezing before WelcomePage appears.
+    This prevents the app from freezing before WelcomePage appears. While these
+    startup Arduino commands are running, background trash disposal is marked
+    unsafe so it cannot compete with homing/reset commands.
     """
 
     def worker():
         print("[STARTUP] Hardware init thread started", flush=True)
+
+        try:
+            set_booth_activity(
+                page_name="StartupHardwareInit",
+                transaction_id="",
+                busy=True,
+                reason="startup_arduino_init",
+            )
+            request_disposal_cancel()
+        except Exception as e:
+            print(f"[STARTUP] Failed to publish startup activity: {e}", flush=True)
 
         try:
             ensure_bill_acceptor_off()
@@ -150,6 +179,21 @@ def start_startup_hardware_init():
         except Exception as e:
             print(f"[STARTUP] HOME_KITS startup step failed: {e}", flush=True)
 
+        try:
+            page = getattr(app, "current_page_name", None) or "WelcomePage"
+            tx = getattr(app, "current_transaction_id", None) or ""
+            arduino_required = page_requires_arduino_serial(page)
+            set_booth_activity(
+                page_name=page,
+                transaction_id=tx,
+                busy=arduino_required,
+                reason=("arduino_serial_required" if arduino_required else "arduino_serial_free"),
+            )
+            if not arduino_required:
+                clear_disposal_cancel_request()
+        except Exception as e:
+            print(f"[STARTUP] Failed to restore booth activity: {e}", flush=True)
+
         print("[STARTUP] Hardware init thread finished", flush=True)
 
     threading.Thread(
@@ -165,6 +209,7 @@ def start_device_sync_safely():
     except Exception as e:
         print(f"[DEVICE WS] Failed to start background sync: {e}", flush=True)
         traceback.print_exc()
+        report_warning("device_sync", "Website Sync Failed", f"Could not start booth website sync: {e}", visible=True)
 
 
 def start_kit_queue_worker_safely():
@@ -173,6 +218,7 @@ def start_kit_queue_worker_safely():
     except Exception as e:
         print(f"[KIT QUEUE] Failed to start worker: {e}", flush=True)
         traceback.print_exc()
+        report_error("kit_queue", "Kit Queue Worker Failed", f"Could not start camera/kit queue worker: {e}", visible=True)
 
 
 class App(ctk.CTk):
@@ -185,9 +231,14 @@ class App(ctk.CTk):
         self.current_user = None
         self.selected_product = None
         self.current_transaction_id = None
+        self.current_page_name = None
+        self.active_flow_kwargs = {}
 
         self.current_error_dialog = None
         self._is_resetting = False
+        self._event_dialog_showing = False
+        self._resume_check_in_progress = False
+        self._resume_candidate_user_id = None
 
         self.bind("<Escape>", lambda e: self.destroy())
 
@@ -221,9 +272,10 @@ class App(ctk.CTk):
         self.show_frame("WelcomePage")
 
         threading.excepthook = self._thread_exception_handler
+        self.after(500, self._poll_system_events)
 
         # Start background systems only after the GUI exists.
-        self.after(300, start_startup_hardware_init)
+        self.after(300, lambda: start_startup_hardware_init(self))
         self.after(700, start_device_sync_safely)
 
         # Delaying this helps avoid native camera/OpenCV startup crashes before Tk is stable.
@@ -242,6 +294,36 @@ class App(ctk.CTk):
         self.focus_force()
 
     def show_frame(self, page_name, **kwargs):
+        self.current_page_name = page_name
+        self.active_flow_kwargs = dict(kwargs or {})
+
+        # Publish booth activity for the background RVM worker. Disposal is
+        # low-priority, but it is not limited to WelcomePage. It may continue
+        # on pages/tasks that do not require Arduino USB-serial communication.
+        # Pages that use bill relay, coin servos, kit actuators, homing, or
+        # change dispensing mark the booth as Arduino-busy and the queue worker
+        # will defer/stop trash disposal until Arduino-safe again.
+        try:
+            current_tx = (
+                kwargs.get("transaction_id")
+                or self.current_transaction_id
+                or ""
+            )
+            arduino_required = page_requires_arduino_serial(page_name)
+            set_booth_activity(
+                page_name=page_name,
+                transaction_id=current_tx,
+                busy=arduino_required,
+                reason=("arduino_serial_required" if arduino_required else "arduino_serial_free"),
+            )
+
+            if arduino_required:
+                request_disposal_cancel()
+            else:
+                clear_disposal_cancel_request()
+        except Exception as e:
+            print(f"[APP] Failed to update booth activity state: {e}", flush=True)
+
         frame = self.frames.get(page_name)
         if not frame:
             print(f"[APP] Frame '{page_name}' does not exist", flush=True)
@@ -258,6 +340,20 @@ class App(ctk.CTk):
         if transaction_id:
             self.current_transaction_id = transaction_id
 
+        # Persist post-payment page state so recoverable errors can return to
+        # the same page with the same transaction data instead of logging out.
+        if page_name in {"ReceiptPage", "DispensingPage", "HowToUsePage", "KitInsertionPage"}:
+            try:
+                save_active_flow(
+                    stage=page_name,
+                    user_data=self.current_user or user_data or {},
+                    selected_product=self.selected_product or selected_product or {},
+                    transaction_id=self.current_transaction_id or transaction_id or "",
+                    extra=kwargs,
+                )
+            except Exception as e:
+                print(f"[APP] Failed to save active flow state: {e}", flush=True)
+
         if hasattr(frame, "update_data"):
             try:
                 frame.update_data(**kwargs)
@@ -267,15 +363,26 @@ class App(ctk.CTk):
             except Exception as e:
                 print(f"[APP] update_data failed for {page_name}: {e}", flush=True)
                 traceback.print_exc()
+                recoverable = page_name in {"HowToUsePage", "KitInsertionPage"}
                 self.show_error(
                     f"Failed to load {page_name}.\n{e}",
                     title="Page Error",
-                    action_text="Reset System",
-                    on_action=self.full_reset,
+                    action_text="Retry / Continue" if recoverable else "Reset System",
+                    on_action=self.retry_current_step if recoverable else self.full_reset,
                 )
                 return
 
         frame.tkraise()
+
+        if user_data and page_name not in {
+            "OnlinePaymentPage",
+            "ReceiptPage",
+            "DispensingPage",
+            "HowToUsePage",
+            "KitInsertionPage",
+            "LoadingPage",
+        }:
+            self.after(600, lambda data=user_data: self._check_online_payment_resume_after_login(data))
 
     def show_loading_then(self, message, next_page, delay=900, **kwargs):
         self.show_frame(
@@ -304,7 +411,11 @@ class App(ctk.CTk):
     ):
         print(f"[APP ERROR] {title}: {message}", flush=True)
 
-        if on_action is None:
+        display_only = action_text is None or str(action_text).strip() == ""
+
+        if display_only:
+            on_action = None
+        elif on_action is None:
             on_action = self.full_reset
 
         if on_close is None:
@@ -429,6 +540,11 @@ class App(ctk.CTk):
             self.current_user = None
             self.selected_product = None
             self.current_transaction_id = None
+            self.active_flow_kwargs = {}
+            try:
+                clear_active_flow()
+            except Exception as e:
+                print(f"[SYSTEM] Failed to clear active flow: {e}", flush=True)
 
             self.show_frame("WelcomePage")
 
@@ -437,6 +553,9 @@ class App(ctk.CTk):
             traceback.print_exc()
         finally:
             self._is_resetting = False
+        self._event_dialog_showing = False
+        self._resume_check_in_progress = False
+        self._resume_candidate_user_id = None
 
     def recover_to_page(self, page_name, message=None, **kwargs):
         """
@@ -476,6 +595,226 @@ class App(ctk.CTk):
             message="Continuing to kit insertion",
         )
 
+    def _get_current_frame(self):
+        if not self.current_page_name:
+            return None
+        return self.frames.get(self.current_page_name)
+
+    def _is_current_page_recoverable(self):
+        return self.current_page_name in {"HowToUsePage", "KitInsertionPage"}
+
+    def retry_current_step(self):
+        """Retry the failed operation without logging the user out."""
+        frame = self._get_current_frame()
+        self.close_error()
+
+        if frame is not None:
+            method = getattr(frame, "recover_from_error", None)
+            if callable(method):
+                try:
+                    method()
+                    return
+                except Exception as e:
+                    print(f"[APP] recover_from_error failed for {self.current_page_name}: {e}", flush=True)
+                    traceback.print_exc()
+
+        # Fallback: reload the same page with preserved kwargs.
+        kwargs = dict(self.active_flow_kwargs or {})
+        if "user_data" not in kwargs and self.current_user:
+            kwargs["user_data"] = self.current_user
+        if "selected_product" not in kwargs and self.selected_product:
+            kwargs["selected_product"] = self.selected_product
+        if "transaction_id" not in kwargs and self.current_transaction_id:
+            kwargs["transaction_id"] = self.current_transaction_id
+
+        if self.current_page_name:
+            self.show_frame(self.current_page_name, **kwargs)
+
+    def show_recoverable_error(self, message, title="Recoverable Error", event=None):
+        """Show a recoverable error and let the current page auto-retry if possible."""
+        frame = self._get_current_frame()
+
+        if frame is not None:
+            scheduler = getattr(frame, "schedule_auto_recovery", None)
+            if callable(scheduler):
+                try:
+                    scheduler(event or {})
+                except Exception as e:
+                    print(f"[APP] schedule_auto_recovery failed: {e}", flush=True)
+
+        self.show_error(
+            message,
+            title=title,
+            action_text="Retry / Continue",
+            on_action=self.retry_current_step,
+            on_close=self._close_error_only,
+        )
+
+    def show_background_warning(self, message, title="Background Warning"):
+        """Show a warning without forcing logout/reset. Background workers keep retrying."""
+        self.show_error(
+            message,
+            title=title,
+            action_text="Dismiss",
+            on_action=self._close_error_only,
+            on_close=self._close_error_only,
+        )
+
+    def _poll_system_events(self):
+        try:
+            events = drain_visible_events(max_items=5)
+
+            for event in events:
+                severity = str(event.get("severity", "info")).lower()
+
+                if severity not in {"error", "critical", "warning"}:
+                    continue
+
+                title = event.get("title") or "Booth Warning"
+                message = event.get("message") or "An issue occurred."
+                source = event.get("source") or "system"
+
+                self.show_error(
+                    f"{message}\n\nSource: {source}",
+                    title=title,
+                    action_text=None,
+                    on_action=None,
+                )
+                break
+
+        except Exception as e:
+            print(f"[APP] Failed to poll system events: {e}", flush=True)
+
+        self.after(500, self._poll_system_events)
+
+    def _extract_user_id(self, user_data):
+        if not isinstance(user_data, dict):
+            return ""
+        return str(user_data.get("_id") or user_data.get("userID") or user_data.get("id") or "").strip()
+
+    def _check_online_payment_resume_after_login(self, user_data):
+        user_id = self._extract_user_id(user_data)
+        if not user_id:
+            return
+
+        if self._resume_check_in_progress:
+            return
+
+        # Do not interrupt active post-payment flows.
+        active_page = None
+        try:
+            for name, frame in self.frames.items():
+                if frame.winfo_ismapped():
+                    active_page = name
+                    break
+        except Exception:
+            pass
+
+        self._resume_check_in_progress = True
+        self._resume_candidate_user_id = user_id
+
+        def worker():
+            try:
+                pending = get_pending_payments_for_user(user_id)
+
+                for record in pending:
+                    session_id = str(record.get("session_id") or "")
+                    if not session_id:
+                        continue
+
+                    try:
+                        res = api_client.get_paymongo_checkout_status(session_id)
+                        data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+
+                        if not res.ok:
+                            raise RuntimeError(data.get("error") or f"Status check failed: {res.status_code}")
+
+                        status = str(data.get("status", record.get("status", "pending"))).lower()
+                        paid = bool(data.get("paid", False)) or status in {"paid", "completed", "succeeded"}
+
+                        if not paid:
+                            continue
+
+                        update_payment_status(session_id, status="paid", flow_stage="payment_confirmed")
+
+                        transaction_id = str(record.get("website_transaction_id") or "")
+
+                        if not transaction_id:
+                            payload = build_transaction_payload_from_record(user_data, record)
+                            transaction_res = api_client.post_transaction(payload)
+                            transaction_data = transaction_res.json() if transaction_res.headers.get("content-type", "").startswith("application/json") else {}
+
+                            if not transaction_res.ok:
+                                raise RuntimeError(transaction_data.get("error") or "Paid payment found, but transaction save failed.")
+
+                            transaction_obj = transaction_data.get("transaction") or {}
+                            transaction_id = (
+                                transaction_obj.get("_id")
+                                or transaction_data.get("_id")
+                                or transaction_data.get("transaction_id")
+                                or transaction_data.get("id")
+                                or ""
+                            )
+
+                            update_payment_status(
+                                session_id,
+                                status="paid",
+                                website_transaction_id=transaction_id,
+                                flow_stage="transaction_saved",
+                            )
+
+                        def continue_flow(record=record, transaction_id=transaction_id, session_id=session_id):
+                            product = record.get("product") or {}
+                            amount = float(record.get("amount", 0) or 0)
+                            discount = float(record.get("discount", 0) or 0)
+
+                            self.close_error()
+                            self.show_loading_then(
+                                "Payment found. Continuing your transaction",
+                                "ReceiptPage",
+                                delay=900,
+                                user_data=user_data,
+                                product=product,
+                                selected_product=product,
+                                discount=discount,
+                                total_paid=amount,
+                                change=0,
+                                total=amount,
+                                online_payment=True,
+                                payment_method="paymongo",
+                                payment_session_id=session_id,
+                                payment_reference=record.get("reference") or session_id,
+                                payment_amount=amount,
+                                payment_mode="live",
+                                simulated=False,
+                                transaction_id=transaction_id,
+                            )
+
+                        self.after(0, continue_flow)
+                        return
+
+                    except Exception as e:
+                        report_warning(
+                            "payment_recovery",
+                            "Payment Resume Check Failed",
+                            "A previous online payment may still be pending, but the booth could not verify it right now.",
+                            details={"session_id": session_id, "error": str(e)},
+                            visible=True,
+                        )
+                        return
+
+            except Exception as e:
+                report_warning(
+                    "payment_recovery",
+                    "Payment Recovery Failed",
+                    f"The booth could not check pending online payments: {e}",
+                    visible=True,
+                )
+            finally:
+                self._resume_check_in_progress = False
+
+        threading.Thread(target=worker, name="PaymentRecoveryCheck", daemon=True).start()
+
     def report_callback_exception(self, exc, val, tb):
         error_text = "".join(traceback.format_exception(exc, val, tb))
         print("[TK CALLBACK ERROR]", error_text, flush=True)
@@ -497,6 +836,14 @@ class App(ctk.CTk):
                 )
             )
             print("[THREAD ERROR]", error_text, flush=True)
+
+            report_error(
+                getattr(args.thread, "name", "background-thread"),
+                "Background Process Error",
+                str(args.exc_value),
+                details=error_text,
+                visible=True,
+            )
 
             self.after(
                 0,

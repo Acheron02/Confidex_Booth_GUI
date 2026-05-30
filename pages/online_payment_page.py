@@ -2,6 +2,8 @@ from frontend import tk_compat as ctk
 from frontend import theme
 from frontend.widgets import AppShell, RoundedCard, PillButton, card_body
 from backend.util import api_client
+from backend.payment_recovery import save_pending_payment, update_payment_status
+from backend.system_events import report_warning, report_error
 from config_manager import config
 
 import threading
@@ -77,12 +79,14 @@ class OnlinePaymentPage(ctk.CTkFrame):
 
         self.poll_job = None
         self.redirect_job = None
+        self.pending_logout_job = None
         self.qr_photo = None
 
         self.request_in_progress = False
         self.status_request_in_progress = False
         self.redirecting_to_cash = False
         self.finalizing_purchase = False
+        self._cancel_pending_logout()
 
         self.status_error_count = 0
         self.checkout_request_token = 0
@@ -769,6 +773,9 @@ class OnlinePaymentPage(ctk.CTkFrame):
             "user_id": user_id,
             "status": "completed",
             "purchasedDate": None,
+            "payment_method": "paymongo",
+            "payment_session_id": self.payment_session_id or "",
+            "payment_reference": self.payment_reference or "",
             "items": [
                 {
                     "name": product_name,
@@ -872,6 +879,30 @@ class OnlinePaymentPage(ctk.CTkFrame):
         self.payment_status = "pending"
         self.payment_mode = payment_mode
         self.simulated = simulated
+
+        try:
+            user_id = self.user_data.get("_id") or self.user_data.get("userID") or self.user_data.get("id")
+            save_pending_payment(
+                session_id=session_id,
+                user_id=user_id,
+                username=self.user_data.get("username", "User"),
+                product=self.selected_product,
+                discount=self.discount,
+                amount=amount,
+                checkout_url=checkout_url,
+                reference=reference,
+                status="pending",
+                flow_stage="checkout_created",
+            )
+        except Exception as e:
+            print(f"[PAYMONGO] Failed to save local pending payment: {e}", flush=True)
+            report_warning(
+                "online_payment",
+                "Local Payment Recovery Warning",
+                "The booth created a payment QR but could not save the local recovery record.",
+                details=str(e),
+                visible=True,
+            )
 
         try:
             self._render_qr(checkout_url)
@@ -1066,6 +1097,15 @@ class OnlinePaymentPage(ctk.CTkFrame):
         if paid or status in ("paid", "completed", "succeeded"):
             print("[PAYMONGO] Payment confirmed", flush=True)
 
+            try:
+                update_payment_status(
+                    self.payment_session_id,
+                    status="paid",
+                    flow_stage="payment_confirmed",
+                )
+            except Exception as e:
+                print(f"[PAYMONGO] Failed to update local payment status: {e}", flush=True)
+
             self.status_label.configure(
                 text=config.get(
                     "online_payment_page",
@@ -1149,13 +1189,97 @@ class OnlinePaymentPage(ctk.CTkFrame):
                 self._start_polling()
             return
 
-        self._redirect_to_cash_with_error(
+        self._mark_payment_pending_and_logout(
             config.get(
                 "online_payment_page",
                 "status_failed_repeatedly_prefix",
                 default="Status check failed repeatedly."
             )
         )
+
+    def _cancel_pending_logout(self):
+        if self.pending_logout_job is not None:
+            try:
+                self.after_cancel(self.pending_logout_job)
+            except Exception:
+                pass
+            self.pending_logout_job = None
+
+    def _mark_payment_pending_and_logout(self, error_message):
+        """
+        Internet failed after the online-payment QR was already created.
+        Do not redirect to cash because the user may have already paid.
+        Save the session as pending, show the issue, then automatically log out.
+        The next login will check this pending session and resume if paid.
+        """
+        if not self.payment_session_id:
+            self._redirect_to_cash_with_error(error_message)
+            return
+
+        self.request_in_progress = False
+        self.status_request_in_progress = False
+        self.finalizing_purchase = False
+        self._stop_polling()
+        self._cancel_redirect()
+
+        try:
+            user_id = self.user_data.get("_id") or self.user_data.get("userID") or self.user_data.get("id")
+            save_pending_payment(
+                session_id=self.payment_session_id,
+                user_id=user_id,
+                username=self.user_data.get("username", "User"),
+                product=self.selected_product,
+                discount=self.discount,
+                amount=self.payment_amount,
+                checkout_url=self.payment_checkout_url or "",
+                reference=self.payment_reference or self.payment_session_id,
+                status="pending",
+                flow_stage="status_check_lost_connection",
+            )
+        except Exception as e:
+            print(f"[PAYMONGO] Failed to persist pending payment before logout: {e}", flush=True)
+
+        message = (
+            "The booth lost internet while checking your online payment.\n\n"
+            "If you already paid in your e-wallet, do not pay again. "
+            "You will be returned to the login screen. After you log in again, "
+            "the booth will check the payment and continue the transaction if it was completed."
+        )
+
+        self.status_label.configure(
+            text="Payment status pending. Returning to login.",
+            text_color=ERROR,
+        )
+        self.status_hint.configure(text="If you already paid, log in again to resume. Do not pay twice.")
+        self.status_icon_text.configure(text="!")
+        self._set_state("Pending", ERROR)
+
+        report_warning(
+            "online_payment",
+            "Payment Status Pending",
+            message,
+            details={
+                "payment_session_id": self.payment_session_id,
+                "reference": self.payment_reference,
+                "error": error_message,
+            },
+            visible=True,
+        )
+
+        if hasattr(self.controller, "show_error"):
+            self.controller.show_error(
+                message,
+                title="Payment Status Pending",
+                action_text="Return to Login",
+                on_action=self.controller.full_reset,
+            )
+
+        self.refresh_btn.configure(state="disabled")
+        self.cancel_btn.configure(state="disabled")
+        self.back_btn.configure(state="disabled")
+
+        self._cancel_pending_logout()
+        self.pending_logout_job = self.after(4500, self.controller.full_reset)
 
     # ---------------------------------------------------------------------
     # FALLBACK / REDIRECT
@@ -1307,6 +1431,16 @@ class OnlinePaymentPage(ctk.CTkFrame):
 
         self.website_transaction_id = website_transaction_id
 
+        try:
+            update_payment_status(
+                self.payment_session_id,
+                status="paid",
+                website_transaction_id=website_transaction_id or "",
+                flow_stage="transaction_saved",
+            )
+        except Exception as e:
+            print(f"[PAYMONGO] Failed to update local transaction recovery: {e}", flush=True)
+
         print("[PAYMONGO] Transaction saved", flush=True)
 
         self.status_label.configure(
@@ -1350,6 +1484,23 @@ class OnlinePaymentPage(ctk.CTkFrame):
             return
 
         self.finalizing_purchase = False
+
+        try:
+            update_payment_status(
+                self.payment_session_id,
+                status="paid",
+                flow_stage="transaction_save_failed",
+            )
+        except Exception:
+            pass
+
+        report_error(
+            "online_payment",
+            "Paid Payment Save Failed",
+            "Payment was confirmed, but the booth could not save the transaction. Log in again to resume.",
+            details=error_message,
+            visible=True,
+        )
 
         self.refresh_btn.configure(state="normal")
         self.cancel_btn.configure(state="normal")
@@ -1404,5 +1555,6 @@ class OnlinePaymentPage(ctk.CTkFrame):
     def destroy(self):
         self._stop_polling()
         self._cancel_redirect()
+        self._cancel_pending_logout()
         self._cancel_config_refresh()
         super().destroy()

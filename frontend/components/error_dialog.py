@@ -7,7 +7,10 @@ from frontend.widgets import card_body
 class ErrorDialog(ctk.CTkFrame):
     """
     Embedded dialog using RoundedCard with auto-size.
-    Single-action dialog (no close button).
+
+    If action_text is None or empty, the dialog is display-only. This is used
+    for vending/actuator/hardware errors where the system must not offer a
+    retry/reset action from the user screen.
     """
 
     def __init__(
@@ -17,14 +20,17 @@ class ErrorDialog(ctk.CTkFrame):
         title="Something went wrong",
         action_text="Reset System",
         on_action=None,
-        on_close=None,  # (kept for compatibility but unused)
+        on_close=None,  # kept for compatibility
         max_width=640,
     ):
         super().__init__(master, fg_color=theme.CREAM)
 
         self.master = master
         self.on_action = on_action
+        self.on_close = on_close
         self.max_width = max_width
+        self.action_button = None
+        self.button_row = None
 
         self.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.lift()
@@ -77,27 +83,43 @@ class ErrorDialog(ctk.CTkFrame):
         )
         self.message_label.pack(pady=(0, 22), padx=20)
 
-        # ===== ONLY ONE BUTTON =====
-        self.button_row = ctk.CTkFrame(self.inner, fg_color=theme.WHITE)
-        self.button_row.pack(pady=(0, 2))
-
-        self.action_button = PillButton(
-            self.button_row,
-            text=action_text,
-            width=220,  # slightly wider since it's the only button
-            height=52,
-            command=self._handle_action,
-            font=theme.font(17, "bold"),
-            fg_color=theme.ORANGE,
-            text_color=theme.WHITE,
-        )
-        self.action_button.pack(padx=8)
-
-        # ❌ Removed:
-        # - close button
-        # - ESC binding
-
+        self._set_action_button(action_text)
         self.after_idle(self._recenter)
+
+    def _action_enabled(self, action_text):
+        return action_text is not None and str(action_text).strip() != ""
+
+    def _set_action_button(self, action_text):
+        enabled = self._action_enabled(action_text)
+
+        if not enabled:
+            if self.button_row is not None:
+                try:
+                    self.button_row.destroy()
+                except Exception:
+                    pass
+            self.button_row = None
+            self.action_button = None
+            return
+
+        if self.button_row is None:
+            self.button_row = ctk.CTkFrame(self.inner, fg_color=theme.WHITE)
+            self.button_row.pack(pady=(0, 2))
+
+        if self.action_button is None:
+            self.action_button = PillButton(
+                self.button_row,
+                text=str(action_text),
+                width=220,
+                height=52,
+                command=self._handle_action,
+                font=theme.font(17, "bold"),
+                fg_color=theme.ORANGE,
+                text_color=theme.WHITE,
+            )
+            self.action_button.pack(padx=8)
+        else:
+            self.action_button.configure(text=str(action_text))
 
     def _recenter(self):
         try:
@@ -108,8 +130,9 @@ class ErrorDialog(ctk.CTkFrame):
     def set_message(self, message, title=None, action_text=None):
         if title:
             self.title_label.configure(text=title)
-        if action_text:
-            self.action_button.configure(text=action_text)
+
+        # Passing None intentionally turns this into a display-only dialog.
+        self._set_action_button(action_text)
 
         self.message_label.configure(text=message)
         self.lift()

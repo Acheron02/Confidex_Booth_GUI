@@ -36,6 +36,7 @@ class WelcomePage(ctk.CTkFrame):
 
         self._redraw_after_id = None
         self._config_snapshot = {}
+        self._system_notice = None
 
         self.canvas.bind("<Button-1>", self.go_to_login)
         self.canvas.bind("<Configure>", self._schedule_redraw)
@@ -188,6 +189,7 @@ class WelcomePage(ctk.CTkFrame):
         cta_y = min(preferred_cta_y, max_cta_y)
 
         self._draw_cta(x, cta_y, cta_w, cta_h, data)
+        self._draw_system_notice(x, cta_y + cta_h + 18, cta_w)
 
         c.create_text(
             x,
@@ -305,6 +307,101 @@ class WelcomePage(ctk.CTkFrame):
             font=("Helvetica", 34, "bold"),
             anchor="center",
         )
+
+
+    def set_system_notice(self, title="", message="", severity="warning"):
+        title = str(title or "").strip()
+        message = str(message or "").strip()
+        severity = str(severity or "warning").strip().lower()
+
+        if not title and not message:
+            self._system_notice = None
+        else:
+            self._system_notice = {
+                "title": title or "Booth Notice",
+                "message": message,
+                "severity": severity,
+            }
+
+        self._schedule_redraw()
+
+    def clear_system_notice(self):
+        self._system_notice = None
+        self._schedule_redraw()
+
+    def _draw_system_notice(self, x, y, w):
+        notice = self._system_notice
+        if not notice:
+            return
+
+        c = self.canvas
+        severity = str(notice.get("severity") or "warning").lower()
+
+        if severity in {"error", "critical"}:
+            fill = "#FFF1F1"
+            outline = "#F7B4B4"
+            title_fill = "#B42318"
+            icon = "!"
+        else:
+            fill = "#FFF8E6"
+            outline = "#F5D38C"
+            title_fill = "#9A6700"
+            icon = "i"
+
+        title = str(notice.get("title") or "Booth Notice")
+        message = str(notice.get("message") or "")
+        box_h = 92 if message else 68
+
+        self._rounded_rect(
+            c,
+            x,
+            y,
+            x + w,
+            y + box_h,
+            22,
+            fill=fill,
+            outline=outline,
+            width=1,
+        )
+
+        c.create_oval(
+            x + 24,
+            y + 22,
+            x + 54,
+            y + 52,
+            fill="#FFFFFF",
+            outline=outline,
+            width=1,
+        )
+        c.create_text(
+            x + 39,
+            y + 37,
+            text=icon,
+            fill=title_fill,
+            font=("Helvetica", 16, "bold"),
+            anchor="center",
+        )
+
+        c.create_text(
+            x + 70,
+            y + 18,
+            text=title,
+            fill=title_fill,
+            font=("Helvetica", 15, "bold"),
+            anchor="nw",
+            width=max(260, w - 96),
+        )
+
+        if message:
+            c.create_text(
+                x + 70,
+                y + 43,
+                text=message,
+                fill="#6B625A",
+                font=("Helvetica", 12, "normal"),
+                anchor="nw",
+                width=max(260, w - 96),
+            )
 
     def _draw_hero_panel(self, x, y, w, h):
         c = self.canvas

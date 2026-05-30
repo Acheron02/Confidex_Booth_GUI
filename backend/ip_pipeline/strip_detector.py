@@ -610,7 +610,7 @@ SPEED_PRESETS = {
         # Faster GUI default. It still scans enough anchors for label-zone detection,
         # but keeps the warped kit smaller for responsive validation.
         "max_process_width": 950,
-        "top_k": 70,
+        "top_k": 90,
         "x_positions": [0.27, 0.31, 0.35, 0.39, 0.43, 0.47, 0.51, 0.55, 0.59, 0.63],
         "y_positions": [0.35, 0.39, 0.43, 0.47, 0.51, 0.55, 0.59, 0.63],
         "sizes": [
@@ -625,8 +625,8 @@ SPEED_PRESETS = {
     "balanced": {
         # Runtime-clean default for batch checks. 1100px is enough for the
         # visible C/M/G, C/1/2, and C/T label zones in the current capture style.
-        "max_process_width": 1100,
-        "top_k": 70,
+        "max_process_width": 1050,
+        "top_k": 110,
         "x_positions": [0.24, 0.27, 0.30, 0.33, 0.36, 0.39, 0.42, 0.45, 0.48, 0.51, 0.54, 0.57, 0.60, 0.63, 0.66],
         "y_positions": [0.32, 0.35, 0.38, 0.41, 0.44, 0.47, 0.50, 0.53, 0.56, 0.59, 0.62, 0.65],
         "sizes": [
@@ -642,7 +642,7 @@ SPEED_PRESETS = {
     },
     "full": {
         "max_process_width": 0,
-        "top_k": 0,
+        "top_k": 220,
         "x_positions": [0.24, 0.26, 0.28, 0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.42, 0.44, 0.46, 0.48, 0.50, 0.52, 0.54, 0.56, 0.58, 0.60, 0.62, 0.64, 0.66, 0.68],
         "y_positions": [0.32, 0.34, 0.36, 0.38, 0.40, 0.42, 0.44, 0.46, 0.48, 0.50, 0.52, 0.54, 0.56, 0.58, 0.60, 0.62, 0.64],
         "sizes": [
@@ -1325,7 +1325,10 @@ def band_mean(profile, x1, x2):
 
 
 def score_line_near_label(dark_profile, red_profile, label_x, width):
-    half_width = max(10, int(width * 0.075))
+    # Slightly wider search window for booth close-ups.  The printed label text
+    # can be horizontally offset from the colored result line when the kit box is
+    # not perfectly tight, especially on WIN_20260506 images.
+    half_width = max(12, int(width * 0.105))
     best_x_dark = best_column_near(dark_profile, label_x, half_width)
     best_x_red = best_column_near(red_profile, label_x, half_width)
 
@@ -1352,11 +1355,11 @@ def score_line_near_label(dark_profile, red_profile, label_x, width):
     contrast_score = center - side
 
     valid = bool(
-        offset <= max(14, width * 0.09)
+        offset <= max(18, width * 0.115)
         and (
-            contrast_score >= 0.035
-            or center >= 0.55
-            or red_peak >= 0.62
+            contrast_score >= 0.026
+            or center >= 0.50
+            or red_peak >= 0.50
         )
     )
 
@@ -1389,7 +1392,7 @@ def suppress_duplicate_line_assignments(line_debug: Dict[str, Dict[str, Any]], e
         duplicate = False
 
         for item in used:
-            if abs(best_x - item["x"]) <= max(8, width * 0.055):
+            if abs(best_x - item["x"]) <= max(7, width * 0.045):
                 duplicate = True
 
                 if strength > item["strength"]:
@@ -2368,6 +2371,37 @@ def dynamic_refine_label_zone_bbox_from_content(bbox, oriented, expected_labels,
         debug["dynamic_y_source"] = y_source
         return bbox, debug
 
+    refined_w = max(1, refined[2] - refined[0])
+    refined_h = max(1, refined[3] - refined[1])
+    original_w_ratio = bw / max(1.0, kit_w)
+    refined_w_ratio = refined_w / max(1.0, kit_w)
+
+    # Guard against the main WIN_20260506 failure: the content-column pass can
+    # see unrelated cassette text or sample-well texture and expand a good
+    # result-window ROI into a very broad crop. Keep the original model ROI when
+    # expansion is too large and not backed by real label/line positions.
+    if x_source != "label_line_positions" and refined_w > bw * 1.34:
+        debug["dynamic_refine_reason"] = f"rejected_excessive_width_growth_{refined_w / max(1.0, bw):.3f}"
+        debug["dynamic_x_source"] = x_source
+        debug["dynamic_y_source"] = y_source
+        return bbox, debug
+
+    if (
+        x_source == "content_columns"
+        and original_w_ratio <= 0.320
+        and refined_w_ratio >= 0.355
+    ):
+        debug["dynamic_refine_reason"] = f"rejected_content_columns_too_wide_{refined_w_ratio:.3f}"
+        debug["dynamic_x_source"] = x_source
+        debug["dynamic_y_source"] = y_source
+        return bbox, debug
+
+    if refined_h > bh * 1.42 and y_source != "content_rows":
+        debug["dynamic_refine_reason"] = f"rejected_excessive_height_growth_{refined_h / max(1.0, bh):.3f}"
+        debug["dynamic_x_source"] = x_source
+        debug["dynamic_y_source"] = y_source
+        return bbox, debug
+
     debug.update({
         "dynamic_refine_used": refined != bbox,
         "dynamic_refine_reason": "accepted" if refined != bbox else "same_as_input",
@@ -2726,6 +2760,7 @@ def build_strip_debug_from_eval(best_eval, meta, kit_w, kit_h, flipped, assay, e
         "strip_confidence": float(confidence),
         "strip_reason": reason,
         "strip_layout": best_eval["candidate"].get("name", ""),
+        "strip_selection_override_reason": best_eval.get("selection_override_reason", ""),
         "strip_local_rect": local_rect_oriented,
         "strip_bbox_local": final_bbox,
         "strip_bbox_oriented": final_bbox,
@@ -2921,6 +2956,141 @@ def maybe_detect_secondary_dengue_ct(
     }
 
 
+
+# ============================================================
+# Final candidate / CSV-kit retry safeguards
+# ============================================================
+
+def _valid_line_count_from_debug(strip_debug: Dict[str, Any]) -> int:
+    if not isinstance(strip_debug, dict):
+        return 0
+    return int(sum(1 for item in (strip_debug.get("line_debug", {}) or {}).values() if item.get("valid", False)))
+
+
+def strip_eval_quality_score(ev: Dict[str, Any], expected_labels: List[str]) -> float:
+    """Score final evaluated candidates for practical ROI correctness.
+
+    The older sorter can occasionally pick a visually detailed but wrong broad
+    crop. This score keeps the original detector score but penalizes crops that
+    have no line evidence and are unusually wide/tall.
+    """
+    if not ev:
+        return -1e9
+
+    score = float(ev.get("score", 0.0))
+    valid = int(ev.get("valid_lines", 0) or 0)
+    n = max(1, len(expected_labels or []))
+    wr = float(ev.get("width_ratio", 0.0) or 0.0)
+    hr = float(ev.get("height_ratio", 0.0) or 0.0)
+    aspect = float(ev.get("aspect", 0.0) or 0.0)
+
+    label_debug = ev.get("label_debug", {}) or {}
+    label_source = str(label_debug.get("label_positions_source", "") or "")
+
+    score += min(2.4, valid * 0.85)
+
+    if label_source == "detected_text_peaks":
+        score += 0.35
+    elif valid <= 0:
+        score -= 1.25
+
+    if valid <= 0:
+        score -= 2.50
+        if wr > 0.335:
+            score -= (wr - 0.335) * 20.0 + 2.0
+        if hr > 0.555:
+            score -= (hr - 0.555) * 10.0 + 1.0
+
+    if wr > 0.365 and valid < max(1, n - 1):
+        score -= (wr - 0.365) * 15.0 + 1.2
+
+    if hr > 0.590 and valid < n:
+        score -= (hr - 0.590) * 10.0 + 0.6
+
+    if aspect < 0.70 or aspect > 3.80:
+        score -= 0.50
+
+    return float(score)
+
+
+def choose_best_strip_evaluation(evaluated: List[Dict[str, Any]], expected_labels: List[str]) -> Optional[Dict[str, Any]]:
+    if not evaluated:
+        return None
+
+    original = evaluated[0]
+    original_valid = int(original.get("valid_lines", 0) or 0)
+    original_wr = float(original.get("width_ratio", 0.0) or 0.0)
+
+    ranked = sorted(
+        evaluated[:80],
+        key=lambda ev: strip_eval_quality_score(ev, expected_labels),
+        reverse=True,
+    )
+
+    best = ranked[0]
+
+    if original_valid > 0 and original_wr <= 0.360:
+        return original
+
+    if strip_eval_quality_score(best, expected_labels) > strip_eval_quality_score(original, expected_labels) + 0.35:
+        best = dict(best)
+        best["selection_override_reason"] = "quality_rescued_from_broad_or_zero_line_candidate"
+        return best
+
+    return original
+
+
+def strip_debug_quality_score(strip_rect, strip_debug: Dict[str, Any]) -> float:
+    if strip_rect is None or not isinstance(strip_debug, dict) or not strip_debug.get("strip_detected", False):
+        return -100.0
+
+    valid = _valid_line_count_from_debug(strip_debug)
+    wr = float(strip_debug.get("strip_width_ratio") or 0.0)
+    hr = float(strip_debug.get("strip_height_ratio") or 0.0)
+    conf = float(strip_debug.get("strip_confidence") or 0.0)
+
+    score = conf * 4.0 + valid * 1.3
+
+    if valid <= 0:
+        score -= 2.2
+    if wr > 0.365 and valid <= 0:
+        score -= (wr - 0.365) * 18.0 + 2.0
+    if hr > 0.590 and valid <= 0:
+        score -= 1.0
+
+    return float(score)
+
+
+def should_retry_with_live_kit(kit_debug: Dict[str, Any], strip_rect, strip_debug: Dict[str, Any]) -> bool:
+    """Retry with the current kit detector when an explicit --kit-csv box leads
+    to a suspicious strip crop. This is only for validation/batch testing with
+    CSV kit boxes and does not affect normal runtime without --kit-csv.
+    """
+    if (kit_debug or {}).get("kit_source") != "csv":
+        return False
+
+    if _detect_kit is None:
+        return False
+
+    if strip_rect is None or not strip_debug.get("strip_detected", False):
+        return True
+
+    valid = _valid_line_count_from_debug(strip_debug)
+    wr = float(strip_debug.get("strip_width_ratio") or 0.0)
+    hr = float(strip_debug.get("strip_height_ratio") or 0.0)
+
+    if valid <= 0:
+        return True
+
+    if wr > 0.365 and valid <= 1:
+        return True
+
+    if hr > 0.590 and valid <= 1:
+        return True
+
+    return False
+
+
 # ============================================================
 # Strip detection main
 # ============================================================
@@ -2963,6 +3133,7 @@ def detect_result_strip(
         "label_positions": {},
         "line_debug": {},
         "secondary_strips": [],
+        "strip_selection_override_reason": "",
         "dengue_secondary_mode": dengue_secondary_mode,
         "dengue_order": dengue_order,
         "ct_order": ct_order,
@@ -3038,7 +3209,13 @@ def detect_result_strip(
         debug["strip_reason"] = "no_label_aware_candidate"
         return None, debug
 
-    best = evaluated[0]
+    best = choose_best_strip_evaluation(evaluated, expected_labels)
+    if best is None:
+        debug["strip_reason"] = "no_label_aware_candidate_after_quality_gate"
+        return None, debug
+
+    if best.get("selection_override_reason"):
+        debug["strip_selection_override_reason"] = best.get("selection_override_reason")
 
     if best["valid_lines"] <= 0:
         reason = "accepted_anchor_but_no_valid_lines"
@@ -3470,6 +3647,13 @@ CSV_COLUMNS = [
     "label_summary",
     "valid_line_count",
     "strip_crop_path",
+    "strip_anchor_count",
+    "strip_shortlisted_count",
+    "strip_selection_override_reason",
+    "csv_kit_retry_used",
+    "csv_kit_retry_reason",
+    "csv_kit_retry_old_quality",
+    "csv_kit_retry_new_quality",
 ]
 
 
@@ -3506,6 +3690,13 @@ def make_csv_row(image_path, kit_rect, kit_debug, strip_rect, strip_debug):
         "label_summary": " | ".join(label_parts),
         "valid_line_count": valid_count,
         "strip_crop_path": strip_debug.get("strip_crop_path", ""),
+        "strip_anchor_count": strip_debug.get("strip_anchor_count", ""),
+        "strip_shortlisted_count": strip_debug.get("strip_shortlisted_count", ""),
+        "strip_selection_override_reason": strip_debug.get("strip_selection_override_reason", ""),
+        "csv_kit_retry_used": int(bool(strip_debug.get("csv_kit_retry_used", False))),
+        "csv_kit_retry_reason": strip_debug.get("csv_kit_retry_reason", ""),
+        "csv_kit_retry_old_quality": strip_debug.get("csv_kit_retry_old_quality", ""),
+        "csv_kit_retry_new_quality": strip_debug.get("csv_kit_retry_new_quality", ""),
     }
 
 
@@ -3582,6 +3773,42 @@ def main():
                 include_debug_images=not args.no_debug_images,
             )
 
+            if should_retry_with_live_kit(kit_debug, strip_rect, strip_debug):
+                live_kit_rect, live_kit_debug = _detect_kit(image_bgr) if _detect_kit is not None else (None, {})
+                if live_kit_rect is not None:
+                    live_strip_rect, live_strip_debug = detect_result_strip(
+                        image_bgr,
+                        live_kit_rect,
+                        assay_type=args.assay,
+                        filename=image_path,
+                        hiv_order=args.hiv_order,
+                        dengue_order=args.dengue_order,
+                        orientation_mode=args.orientation,
+                        dengue_secondary_mode=args.dengue_secondary,
+                        speed_mode=args.speed,
+                        max_process_width=args.max_process_width,
+                        include_debug_images=not args.no_debug_images,
+                    )
+
+                    current_q = strip_debug_quality_score(strip_rect, strip_debug)
+                    live_q = strip_debug_quality_score(live_strip_rect, live_strip_debug)
+
+                    if live_q > current_q + 0.35:
+                        kit_rect = live_kit_rect
+                        kit_debug = dict(live_kit_debug or {})
+                        kit_debug["kit_source"] = "detector_retry_after_csv_strip_suspicious"
+                        strip_rect = live_strip_rect
+                        strip_debug = live_strip_debug
+                        strip_debug["csv_kit_retry_used"] = True
+                        strip_debug["csv_kit_retry_reason"] = "csv_strip_suspicious_live_kit_better"
+                        strip_debug["csv_kit_retry_old_quality"] = current_q
+                        strip_debug["csv_kit_retry_new_quality"] = live_q
+                    else:
+                        strip_debug["csv_kit_retry_used"] = False
+                        strip_debug["csv_kit_retry_reason"] = "live_kit_not_better"
+                        strip_debug["csv_kit_retry_old_quality"] = current_q
+                        strip_debug["csv_kit_retry_new_quality"] = live_q
+
             # detect_result_strip already stores the correct drawing meta, including
             # the processing downscale transform. This fallback is only for older
             # detector versions.
@@ -3613,7 +3840,7 @@ def main():
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
         writer.writeheader()
-        writer.writerows(rows),\
+        writer.writerows(rows)
 
     print(f"\nSaved summary CSV: {csv_path}")
     print(f"Saved annotated images/debug folders under: {args.out}")

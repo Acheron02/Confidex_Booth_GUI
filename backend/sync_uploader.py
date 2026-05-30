@@ -1,5 +1,6 @@
 from pathlib import Path
 from backend.util.api_client import upload_receipt, upload_session_images
+from backend.system_events import report_warning
 
 
 def sync_receipt_and_images(
@@ -31,6 +32,13 @@ def sync_receipt_and_images(
             "error": str(e),
         }
         print(f"[SYNC] Receipt upload failed: {e}", flush=True)
+        report_warning(
+            "sync_uploader",
+            "Receipt Upload Pending",
+            "The receipt could not be uploaded because the website connection is unstable. It remains saved locally.",
+            details=str(e),
+            visible=True,
+        )
 
     try:
         image_results = upload_session_images(
@@ -62,5 +70,12 @@ def sync_receipt_and_images(
             "error": str(e),
         }
         print(f"[SYNC] Image upload batch failed: {e}", flush=True)
+        report_warning(
+            "sync_uploader",
+            "Image Upload Pending",
+            "Captured images could not be uploaded right now. They remain saved locally and can be retried.",
+            details=str(e),
+            visible=True,
+        )
 
     return result
