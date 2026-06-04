@@ -28,12 +28,6 @@ def health():
 
 @app.get("/receipt/{user_id}/{timestamp}")
 def get_receipt(user_id: str, timestamp: str):
-    """
-    Return receipt.json for a specific user and timestamp.
-
-    Example:
-    /receipt/69b4259c191db5be838a8d9f/20260321_000754
-    """
     receipt_path = get_receipt_path(user_id, timestamp)
 
     if not receipt_path.exists():
@@ -51,9 +45,6 @@ def get_receipt(user_id: str, timestamp: str):
 
 @app.get("/receipt/latest/{user_id}")
 def get_latest_receipt(user_id: str):
-    """
-    Return the latest receipt.json for a specific user.
-    """
     user_dir = CAPTURES_DIR / user_id
 
     if not user_dir.exists() or not user_dir.is_dir():
@@ -70,6 +61,7 @@ def get_latest_receipt(user_id: str):
 
     for ts_dir in timestamp_dirs:
         receipt_path = ts_dir / "receipt.json"
+
         if receipt_path.exists():
             try:
                 with receipt_path.open("r", encoding="utf-8") as f:
@@ -90,9 +82,6 @@ def get_latest_receipt(user_id: str):
 
 @app.get("/receipt/list/{user_id}")
 def list_receipts(user_id: str):
-    """
-    List available receipt timestamps for a user.
-    """
     user_dir = CAPTURES_DIR / user_id
 
     if not user_dir.exists() or not user_dir.is_dir():

@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 from pathlib import Path
 
 import requests
@@ -91,10 +92,21 @@ class QRLoginPage(ctk.CTkFrame):
         self._waiting_anim_running = False
         self._config_refresh_job = None
 
+        # Auto-return timer: if no user successfully logs in within the
+        # configured time, the kiosk returns to the Welcome page.
+        self._login_timeout_job = None
+        self._login_timeout_started_at = 0.0
+        self._login_timed_out = False
+        self._login_successful = False
+
         self._build_ui()
 
-        self.start_waiting_animation()
-        self.start_key_listener()
+        # IMPORTANT:
+        # The QRLoginPage instance is created during app startup even when the
+        # kiosk is still showing WelcomePage. Do not start the scanner listener
+        # or the 45-second timeout here. Those must start only when the user
+        # taps WelcomePage and QRLoginPage is intentionally activated.
+        self.disabled = True
         self._start_config_refresh()
 
     # ------------------------------------------------------------------
@@ -546,7 +558,9 @@ class QRLoginPage(ctk.CTkFrame):
                 default="Waiting for generated login QR"
             )
 
-            if not self.processing and not self.disabled:
+            # Do not let config refresh erase the countdown/status text while
+            # the active QR-login session is running.
+            if not self.processing and not self.disabled and not self._is_login_session_active():
                 self.result_label.configure(
                     text=config.get(
                         "qr_login_page",
@@ -575,6 +589,172 @@ class QRLoginPage(ctk.CTkFrame):
             except Exception:
                 pass
             self._config_refresh_job = None
+
+    # ------------------------------------------------------------------
+    # Auto-return timer
+    # ------------------------------------------------------------------
+    def _get_login_timeout_seconds(self):
+        """
+        Returns how long the QR login page should wait before returning to
+        WelcomePage when no user has logged in.
+
+        Supported config keys under qr_login_page:
+          - auto_return_seconds
+          - login_timeout_seconds
+          - return_to_welcome_seconds
+
+        Default: 45 seconds.
+        Set to 0 or a negative value to disable the timeout.
+        """
+        keys = (
+            "auto_return_seconds",
+            "login_timeout_seconds",
+            "return_to_welcome_seconds",
+        )
+
+        for key in keys:
+            try:
+                value = config.get("qr_login_page", key, default=None)
+            except Exception:
+                value = None
+
+            if value in (None, "", "null", "None"):
+                continue
+
+            try:
+                return max(0, int(float(value)))
+            except Exception:
+                continue
+
+        return 45
+
+    def _is_login_session_active(self):
+        return (
+            not self.disabled
+            and not self._login_timed_out
+            and not self._login_successful
+            and float(self._login_timeout_started_at or 0.0) > 0.0
+        )
+
+    def _update_timeout_countdown(self, remaining_seconds=None):
+        if self.disabled or self.processing or self._login_successful or self._login_timed_out:
+            return
+
+        timeout_seconds = self._get_login_timeout_seconds()
+        if timeout_seconds <= 0:
+            return
+
+        if remaining_seconds is None:
+            elapsed = time.monotonic() - float(self._login_timeout_started_at or time.monotonic())
+            remaining_seconds = timeout_seconds - elapsed
+
+        remaining_int = max(0, int(float(remaining_seconds) + 0.999))
+
+        self.status_label.configure(
+            text=f"Scan your login QR within {remaining_int} seconds.",
+            text_color=MUTED,
+        )
+
+    def start_login_timeout(self):
+        self.cancel_login_timeout()
+        self._login_timed_out = False
+        self._login_successful = False
+        self._login_timeout_started_at = time.monotonic()
+
+        timeout_seconds = self._get_login_timeout_seconds()
+
+        if timeout_seconds <= 0:
+            return
+
+        self._update_timeout_countdown(timeout_seconds)
+        self._login_timeout_job = self.after(1000, self._check_login_timeout)
+
+    def cancel_login_timeout(self):
+        if self._login_timeout_job is not None:
+            try:
+                self.after_cancel(self._login_timeout_job)
+            except Exception:
+                pass
+            self._login_timeout_job = None
+        self._login_timeout_started_at = 0.0
+
+    def _check_login_timeout(self):
+        self._login_timeout_job = None
+
+        if self.disabled or self._login_successful or self._login_timed_out:
+            return
+
+        timeout_seconds = self._get_login_timeout_seconds()
+
+        if timeout_seconds <= 0:
+            return
+
+        elapsed = time.monotonic() - float(self._login_timeout_started_at or time.monotonic())
+        remaining = timeout_seconds - elapsed
+
+        if remaining > 0:
+            self._update_timeout_countdown(remaining)
+            next_check_ms = int(max(250, min(1000, remaining * 1000)))
+            self._login_timeout_job = self.after(next_check_ms, self._check_login_timeout)
+            return
+
+        # Do not change pages while a QR code is actively being verified.
+        # If verification fails, the timeout will return the kiosk to Welcome
+        # right after processing finishes. If verification succeeds, success()
+        # marks _login_successful and cancels the timeout.
+        if self.processing:
+            self._login_timeout_job = self.after(1000, self._check_login_timeout)
+            return
+
+        self._return_to_welcome_due_to_timeout()
+
+    def _return_to_welcome_due_to_timeout(self):
+        if self.disabled or self._login_successful:
+            return
+
+        self._login_timed_out = True
+        self.disabled = True
+        self.processing = False
+        self.buffer = ""
+
+        self.cancel_login_timeout()
+        self.stop_waiting_animation()
+
+        if self.listener:
+            try:
+                self.listener.stop()
+            except Exception:
+                pass
+            self.listener = None
+
+        self._set_scanner_state("Login timed out", ORANGE)
+
+        self.status_label.configure(
+            text=config.get(
+                "qr_login_page",
+                "timeout_status_text",
+                default="No login QR was scanned within 45 seconds."
+            ),
+            text_color=ORANGE
+        )
+
+        self.result_label.configure(
+            text=config.get(
+                "qr_login_page",
+                "timeout_returning_text",
+                default="Returning to welcome page..."
+            ),
+            text_color=ORANGE
+        )
+
+        print("[QR LOGIN] Timeout reached. Returning to WelcomePage.", flush=True)
+
+        def go_back():
+            self.deactivate_page()
+            if self.controller:
+                self.controller.show_frame("WelcomePage")
+
+        self.after(700, go_back)
 
     # ------------------------------------------------------------------
     # Waiting animation
@@ -670,6 +850,7 @@ class QRLoginPage(ctk.CTkFrame):
         self.processing = True
         self.buffer = ""
 
+        self.cancel_login_timeout()
         self.stop_waiting_animation()
         self._set_scanner_state("Bypass active", ORANGE)
 
@@ -717,6 +898,7 @@ class QRLoginPage(ctk.CTkFrame):
             text_color=SUCCESS
         )
 
+        self._login_successful = True
         self.disable_page()
         self.redirect_to_purchase(user_data)
 
@@ -815,6 +997,9 @@ class QRLoginPage(ctk.CTkFrame):
 
         if not scanned_code.startswith("LOGIN-"):
             def invalid_qr():
+                if self.disabled:
+                    return
+
                 self._set_scanner_state("Invalid QR", ERROR)
 
                 self.status_label.configure(
@@ -850,6 +1035,12 @@ class QRLoginPage(ctk.CTkFrame):
                 }
 
                 def success():
+                    if self.disabled:
+                        return
+
+                    self._login_successful = True
+                    self.cancel_login_timeout()
+
                     self._set_scanner_state("Login verified", SUCCESS)
 
                     self.status_label.configure(
@@ -934,6 +1125,7 @@ class QRLoginPage(ctk.CTkFrame):
     def disable_page(self):
         self.disabled = True
         self.processing = False
+        self.cancel_login_timeout()
         self.stop_waiting_animation()
 
         if self.listener:
@@ -945,13 +1137,55 @@ class QRLoginPage(ctk.CTkFrame):
 
     def redirect_to_purchase(self, user_data):
         if self.controller:
+            handler = getattr(self.controller, "handle_qr_login_success", None)
+            if callable(handler):
+                handler(user_data)
+                return
             self.controller.current_user = user_data
             self.controller.show_frame("PurchasePage", user_data=user_data)
+    def activate_page(self):
+        self.reset_fields(start_active=True)
 
-    def reset_fields(self, **kwargs):
+    def deactivate_page(self):
+        self.cancel_login_timeout()
+        self.stop_waiting_animation()
+
         self.buffer = ""
-        self.disabled = False
+        self.disabled = True
         self.processing = False
+        self._login_timed_out = False
+        self._login_successful = False
+        self._pressed_keys = set()
+
+        if self.listener:
+            try:
+                self.listener.stop()
+            except Exception:
+                pass
+            self.listener = None
+
+    def reset_fields(self, start_active=False, **kwargs):
+        # Main._reset_all_page_state() and PurchasePage.logout() call
+        # reset_fields() while the kiosk is returning to WelcomePage. In that
+        # situation, the QR scanner and timeout must remain OFF. They should
+        # start only when WelcomePage.go_to_login() explicitly passes
+        # start_active=True.
+        start_active = bool(
+            start_active
+            or kwargs.get("active")
+            or kwargs.get("activate")
+            or kwargs.get("start_timeout")
+            or kwargs.get("start_login_timeout")
+        )
+
+        self.cancel_login_timeout()
+        self.stop_waiting_animation()
+
+        self.buffer = ""
+        self.disabled = not start_active
+        self.processing = False
+        self._login_timed_out = False
+        self._login_successful = False
         self._pressed_keys = set()
 
         if self.listener:
@@ -966,7 +1200,11 @@ class QRLoginPage(ctk.CTkFrame):
         self._render_website_qr()
 
         self.status_label.configure(
-            text="The kiosk scanner is active.",
+            text=(
+                "The kiosk scanner is active."
+                if start_active
+                else "Tap the welcome screen to start QR login."
+            ),
             text_color=MUTED
         )
 
@@ -979,12 +1217,15 @@ class QRLoginPage(ctk.CTkFrame):
             text_color=BLACK
         )
 
-        self._set_scanner_state("Scanner ready", INFO)
+        self._set_scanner_state("Scanner ready" if start_active else "Scanner inactive", INFO)
 
-        self.start_waiting_animation()
-        self.start_key_listener()
+        if start_active:
+            self.start_waiting_animation()
+            self.start_key_listener()
+            self.start_login_timeout()
 
     def destroy(self):
+        self.cancel_login_timeout()
         self.stop_waiting_animation()
         self._cancel_config_refresh()
 

@@ -1,0 +1,6 @@
+{
+  "epoch_iso": "2026-06-01T09:22:23.703540+00:00",
+  "created_at": "2026-06-01T09:22:23.703540+00:00",
+  "purpose": "Prevents old Raspberry Pi local backlog from being uploaded to a new website database.",
+  "override": "Set CONFIDEX_ALLOW_LEGACY_BACKFILL=1 only if you intentionally want old local records uploaded."
+}

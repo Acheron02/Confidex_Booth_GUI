@@ -1,0 +1,173 @@
+{
+  "recovered_pending_inference": true,
+  "recovered_at": "2026-06-02T03:24:16.393875+00:00",
+  "transaction_id": "6a13d9559ad42f9baf880b70",
+  "user_id": "69b791783385f884c12193b6",
+  "product_id": "HIV123",
+  "product_name": "HIV Confidex Kit",
+  "source_original": "/home/code200/Confidex_GUI/captures/69b791783385f884c12193b6/20260525_130938/original.png",
+  "result": "Invalid",
+  "original_result": "Invalid",
+  "review_status": "under_review",
+  "review_required": true,
+  "annotation_policy": "yolo_class_labels_only",
+  "analysis": {
+    "ok": true,
+    "reason": "NO_VALID_COMBINATION_CONTAINED",
+    "model": "backend/ipModel/my_model.pt",
+    "result": "Invalid",
+    "detections_count": 1,
+    "detections": [
+      {
+        "label": "CV",
+        "label_normalized": "CV",
+        "class_key": "CV",
+        "class_id": 4,
+        "confidence": 0.8005577325820923,
+        "box_xyxy": [
+          226.22,
+          318.9,
+          250.01,
+          411.68
+        ]
+      }
+    ],
+    "all_detections_count": 3,
+    "all_detections": [
+      {
+        "label": "GN",
+        "label_normalized": "GN",
+        "class_key": "GN",
+        "class_id": 5,
+        "confidence": 0.8307816982269287,
+        "box_xyxy": [
+          272.74,
+          318.98,
+          293.93,
+          414.53
+        ]
+      },
+      {
+        "label": "CV",
+        "label_normalized": "CV",
+        "class_key": "CV",
+        "class_id": 4,
+        "confidence": 0.8005577325820923,
+        "box_xyxy": [
+          226.22,
+          318.9,
+          250.01,
+          411.68
+        ]
+      },
+      {
+        "label": "MP",
+        "label_normalized": "MP",
+        "class_key": "MP",
+        "class_id": 8,
+        "confidence": 0.7062054872512817,
+        "box_xyxy": [
+          249.04,
+          319.46,
+          272.59,
+          413.78
+        ]
+      }
+    ],
+    "active_filter": {
+      "family": "hiv",
+      "allowed_family_classes": [
+        "1N",
+        "1P",
+        "2N",
+        "2P",
+        "CV"
+      ],
+      "family_conf_threshold": 0.4,
+      "active_kit_policy": "bottom",
+      "clusters": [
+        {
+          "index": 0,
+          "median_y": 365.29,
+          "count": 1,
+          "classes": [
+            "CV"
+          ],
+          "selected": true
+        }
+      ],
+      "selected_cluster": {
+        "median_y": 365.29,
+        "count": 1,
+        "classes": [
+          "CV"
+        ]
+      },
+      "ignored_detections": [
+        {
+          "label": "GN",
+          "label_normalized": "GN",
+          "class_key": "GN",
+          "class_id": 5,
+          "confidence": 0.8307816982269287,
+          "box_xyxy": [
+            272.74,
+            318.98,
+            293.93,
+            414.53
+          ],
+          "ignore_reason": "NOT_HIV_CLASS"
+        },
+        {
+          "label": "MP",
+          "label_normalized": "MP",
+          "class_key": "MP",
+          "class_id": 8,
+          "confidence": 0.7062054872512817,
+          "box_xyxy": [
+            249.04,
+            319.46,
+            272.59,
+            413.78
+          ],
+          "ignore_reason": "NOT_HIV_CLASS"
+        }
+      ],
+      "filter_reason": "ACTIVE_KIT_FILTER_APPLIED"
+    },
+    "detected_classes": [
+      "CV"
+    ],
+    "relevant_detected_classes": [
+      "CV"
+    ],
+    "matched_rule": "",
+    "invalid_reason": "Detected classes do not contain any valid Positive or Negative combination.",
+    "conf_threshold": 0.4,
+    "predict_conf_threshold": 0.25,
+    "global_conf_threshold": 0.25,
+    "expected_family": "hiv",
+    "imgsz": 640,
+    "device": "cpu",
+    "product_id": "HIV123",
+    "product_name": "HIV Confidex Kit"
+  },
+  "detections": [
+    {
+      "label": "CV",
+      "label_normalized": "CV",
+      "class_key": "CV",
+      "class_id": 4,
+      "confidence": 0.8005577325820923,
+      "box_xyxy": [
+        226.22,
+        318.9,
+        250.01,
+        411.68
+      ]
+    }
+  ],
+  "recovery_image_policy": "original_keyword_only_no_raw",
+  "recovery_range_start": "2026-05-01T00:00:00+00:00",
+  "recovery_range_end": "2026-07-01T00:00:00+00:00"
+}

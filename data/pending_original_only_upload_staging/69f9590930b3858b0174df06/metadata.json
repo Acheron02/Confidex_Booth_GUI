@@ -1,0 +1,111 @@
+{
+  "recovered_pending_inference": true,
+  "recovered_at": "2026-06-02T03:22:51.369971+00:00",
+  "transaction_id": "69f9590930b3858b0174df06",
+  "user_id": "69b791783385f884c12193b6",
+  "product_id": "DENGUE123",
+  "product_name": "Dengue Confidex Kit",
+  "source_original": "/home/code200/Confidex_GUI/captures/69b791783385f884c12193b6/20260505_103007/original.png",
+  "result": "Invalid",
+  "original_result": "Invalid",
+  "review_status": "under_review",
+  "review_required": true,
+  "annotation_policy": "yolo_class_labels_only",
+  "analysis": {
+    "ok": true,
+    "reason": "NO_OBJECT_DETECTED",
+    "model": "backend/ipModel/my_model.pt",
+    "result": "Invalid",
+    "detections_count": 0,
+    "detections": [],
+    "all_detections_count": 2,
+    "all_detections": [
+      {
+        "label": "1N",
+        "label_normalized": "1N",
+        "class_key": "1N",
+        "class_id": 0,
+        "confidence": 0.6449424624443054,
+        "box_xyxy": [
+          288.07,
+          0.0,
+          317.55,
+          89.04
+        ]
+      },
+      {
+        "label": "2N",
+        "label_normalized": "2N",
+        "class_key": "2N",
+        "class_id": 2,
+        "confidence": 0.25265541672706604,
+        "box_xyxy": [
+          252.11,
+          9.21,
+          283.71,
+          77.23
+        ]
+      }
+    ],
+    "active_filter": {
+      "family": "dengue",
+      "allowed_family_classes": [
+        "CV",
+        "GN",
+        "GP",
+        "MN",
+        "MP"
+      ],
+      "family_conf_threshold": 0.25,
+      "active_kit_policy": "bottom",
+      "clusters": [],
+      "ignored_detections": [
+        {
+          "label": "1N",
+          "label_normalized": "1N",
+          "class_key": "1N",
+          "class_id": 0,
+          "confidence": 0.6449424624443054,
+          "box_xyxy": [
+            288.07,
+            0.0,
+            317.55,
+            89.04
+          ],
+          "ignore_reason": "NOT_DENGUE_CLASS"
+        },
+        {
+          "label": "2N",
+          "label_normalized": "2N",
+          "class_key": "2N",
+          "class_id": 2,
+          "confidence": 0.25265541672706604,
+          "box_xyxy": [
+            252.11,
+            9.21,
+            283.71,
+            77.23
+          ],
+          "ignore_reason": "NOT_DENGUE_CLASS"
+        }
+      ],
+      "filter_reason": "NO_RELEVANT_FAMILY_DETECTIONS"
+    },
+    "detected_classes": [],
+    "relevant_detected_classes": [],
+    "matched_rule": "",
+    "invalid_reason": "No object/class was detected by the model.",
+    "conf_threshold": 0.25,
+    "predict_conf_threshold": 0.25,
+    "global_conf_threshold": 0.25,
+    "expected_family": "dengue",
+    "imgsz": 640,
+    "device": "cpu",
+    "product_id": "DENGUE123",
+    "product_name": "Dengue Confidex Kit"
+  },
+  "detections": [],
+  "recovery_image_policy": "original_keyword_only_no_raw",
+  "recovery_range_start": "2026-05-01T00:00:00+00:00",
+  "recovery_range_end": "2026-07-01T00:00:00+00:00"
+}

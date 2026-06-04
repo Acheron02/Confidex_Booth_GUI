@@ -56,6 +56,15 @@ class HowToUsePage(ctk.CTkFrame):
     REFRESH_MS = 1500
     VIDEO_MONITOR_MS = 500
 
+    # Clean kiosk video controls:
+    # - icon-only buttons
+    # - hidden during normal playback
+    # - shown briefly on touch/click/movement
+    # - also revealed briefly after idle so users can discover controls
+    CONTROL_REVEAL_IDLE_MS = 1800
+    CONTROL_AUTO_HIDE_MS = 3500
+    SEEK_STEP_SECONDS = 10
+
     SAFE_MAX_VOLUME = 70
     DEFAULT_AUTOPLAY_VOLUME = 70
 
@@ -84,6 +93,10 @@ class HowToUsePage(ctk.CTkFrame):
         self._config_refresh_job = None
         self._video_monitor_job = None
         self._video_retry_job = None
+        self._controls_hide_job = None
+        self._controls_idle_reveal_job = None
+        self._video_controls_visible = False
+        self._user_paused_video = False
         self._redirecting = False
         self._video_retry_count = 0
         self._video_fallback_shown = False
@@ -292,6 +305,10 @@ class HowToUsePage(ctk.CTkFrame):
         self.video_panel.grid_propagate(False)
         self.video_panel.pack_propagate(False)
 
+        # Controls are NOT children of this VLC video surface.
+        # They are built as a separate floating Toplevel after video_status.
+        # This keeps VLC playback visible while still making controls appear
+        # visually over the video.
         self.video_status = ctk.CTkLabel(
             self.left_panel,
             text="",
@@ -303,6 +320,9 @@ class HowToUsePage(ctk.CTkFrame):
             fg_color=WHITE
         )
         self.video_status.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+
+        self._build_video_controls_overlay()
+        self._bind_video_control_reveal_events()
 
     def _build_instruction_panel(self):
         self.right_panel.grid_columnconfigure(0, weight=1)
@@ -520,6 +540,310 @@ class HowToUsePage(ctk.CTkFrame):
             self.info_title.configure(wraplength=right_wrap)
             self.action_note.configure(wraplength=right_wrap)
 
+        except Exception:
+            pass
+
+
+    # ---------------------------------------------------------------------
+    # VLC-safe floating video controls
+    # ---------------------------------------------------------------------
+
+    def _build_video_controls_overlay(self):
+        """Build icon-only playback controls as a separate floating window.
+
+        Important:
+        - Do NOT put buttons inside self.video_panel / self.video_inner.
+        - VLC draws into a native X window on Raspberry Pi.
+        - Tk/CTk widgets placed inside the VLC surface can make the video black.
+        - This Toplevel looks like an overlay, but it does not disturb VLC.
+        """
+        if getattr(self, "video_controls_window", None) is not None:
+            return
+
+        self.video_controls_window = tk.Toplevel(self.winfo_toplevel())
+        self.video_controls_window.withdraw()
+        self.video_controls_window.overrideredirect(True)
+
+        try:
+            self.video_controls_window.transient(self.winfo_toplevel())
+        except Exception:
+            pass
+
+        try:
+            self.video_controls_window.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        # Use a rare color as the transparent key if the platform supports it.
+        # If unsupported, the fallback background is cream instead of black.
+        self._controls_transparent_color = "#00FF01"
+        self._controls_transparency_supported = False
+
+        try:
+            self.video_controls_window.configure(bg=self._controls_transparent_color)
+            self.video_controls_window.wm_attributes(
+                "-transparentcolor",
+                self._controls_transparent_color,
+            )
+            self._controls_transparency_supported = True
+            window_bg = self._controls_transparent_color
+        except Exception:
+            window_bg = CREAM
+            try:
+                self.video_controls_window.configure(bg=window_bg)
+            except Exception:
+                pass
+
+        self.video_controls_frame = tk.Frame(
+            self.video_controls_window,
+            bg=window_bg,
+            bd=0,
+            highlightthickness=0,
+        )
+        self.video_controls_frame.pack(padx=0, pady=0)
+
+        button_style = {
+            "font": ("Arial", 24, "bold"),
+            "width": 3,
+            "height": 1,
+            "bd": 0,
+            "relief": "flat",
+            "bg": CREAM,
+            "fg": ORANGE,
+            "activebackground": "#FFF2E8",
+            "activeforeground": ORANGE,
+            "highlightthickness": 0,
+            "cursor": "hand2",
+            "takefocus": 0,
+        }
+
+        self.video_back_btn = tk.Button(
+            self.video_controls_frame,
+            text="⏪",
+            command=lambda: self.seek_video_relative(-self.SEEK_STEP_SECONDS),
+            **button_style,
+        )
+        self.video_back_btn.grid(row=0, column=0, padx=6, pady=0)
+
+        self.video_play_pause_btn = tk.Button(
+            self.video_controls_frame,
+            text="⏸",
+            command=self.toggle_video_play_pause,
+            **button_style,
+        )
+        self.video_play_pause_btn.grid(row=0, column=1, padx=6, pady=0)
+
+        self.video_forward_btn = tk.Button(
+            self.video_controls_frame,
+            text="⏩",
+            command=lambda: self.seek_video_relative(self.SEEK_STEP_SECONDS),
+            **button_style,
+        )
+        self.video_forward_btn.grid(row=0, column=2, padx=6, pady=0)
+
+        for widget in (
+            self.video_controls_window,
+            self.video_controls_frame,
+            self.video_back_btn,
+            self.video_play_pause_btn,
+            self.video_forward_btn,
+        ):
+            for event_name in ("<Button-1>", "<Motion>", "<Enter>"):
+                try:
+                    widget.bind(event_name, self._on_video_user_activity, add="+")
+                except Exception:
+                    pass
+
+        self._video_controls_visible = False
+
+    def _position_video_controls_window(self):
+        """Position the floating controls visually over the video panel."""
+        try:
+            if not hasattr(self, "video_controls_window"):
+                return
+
+            self.update_idletasks()
+            self.video_panel.update_idletasks()
+            self.video_controls_window.update_idletasks()
+
+            panel_x = self.video_panel.winfo_rootx()
+            panel_y = self.video_panel.winfo_rooty()
+            panel_w = max(1, self.video_panel.winfo_width())
+            panel_h = max(1, self.video_panel.winfo_height())
+
+            controls_w = max(1, self.video_controls_frame.winfo_reqwidth())
+            controls_h = max(1, self.video_controls_frame.winfo_reqheight())
+
+            # Bottom-center of the video, slightly above the lower edge.
+            x = int(panel_x + (panel_w - controls_w) / 2)
+            y = int(panel_y + panel_h - controls_h - 26)
+
+            self.video_controls_window.geometry(f"{controls_w}x{controls_h}+{x}+{y}")
+
+        except Exception as e:
+            print(f"[HOWTO] Failed to position video controls: {e}", flush=True)
+
+    def _bind_video_control_reveal_events(self):
+        widgets = [
+            self.video_panel,
+            self.video_inner,
+            self.video_outer,
+        ]
+
+        for widget in widgets:
+            if widget is None:
+                continue
+
+            for event_name in ("<Button-1>", "<Motion>", "<Enter>"):
+                try:
+                    widget.bind(event_name, self._on_video_user_activity, add="+")
+                except Exception:
+                    pass
+
+        for widget in (self, self.page, self.main_wrap, self.left_panel, self.video_outer, self.video_inner, self.video_panel):
+            try:
+                widget.bind(
+                    "<Configure>",
+                    lambda event=None: self._position_video_controls_window(),
+                    add="+",
+                )
+            except Exception:
+                pass
+
+    def _on_video_user_activity(self, event=None):
+        if self._redirecting:
+            return
+
+        self._cancel_idle_control_reveal()
+        self._show_video_controls_temporarily(reason="user_activity")
+
+    def _cancel_controls_hide(self):
+        if self._controls_hide_job:
+            try:
+                self.after_cancel(self._controls_hide_job)
+            except Exception:
+                pass
+
+            self._controls_hide_job = None
+
+    def _cancel_idle_control_reveal(self):
+        if self._controls_idle_reveal_job:
+            try:
+                self.after_cancel(self._controls_idle_reveal_job)
+            except Exception:
+                pass
+
+            self._controls_idle_reveal_job = None
+
+    def _schedule_idle_control_reveal(self):
+        self._cancel_idle_control_reveal()
+
+        if self._redirecting:
+            return
+
+        try:
+            delay_ms = int(config.get(
+                "how_to_use_page",
+                "video_controls_idle_reveal_ms",
+                default=self.CONTROL_REVEAL_IDLE_MS,
+            ))
+        except Exception:
+            delay_ms = self.CONTROL_REVEAL_IDLE_MS
+
+        delay_ms = max(1000, delay_ms)
+        self._controls_idle_reveal_job = self.after(
+            delay_ms,
+            self._idle_reveal_video_controls,
+        )
+
+    def _idle_reveal_video_controls(self):
+        self._controls_idle_reveal_job = None
+
+        if self._redirecting:
+            return
+
+        self._show_video_controls_temporarily(reason="idle_reveal")
+
+    def _show_video_controls_temporarily(self, reason=""):
+        try:
+            if not hasattr(self, "video_controls_window"):
+                return
+
+            self._update_play_pause_button()
+            self._position_video_controls_window()
+
+            self.video_controls_window.deiconify()
+            self.video_controls_window.lift()
+
+            try:
+                self.video_controls_window.attributes("-topmost", True)
+            except Exception:
+                pass
+
+            self._video_controls_visible = True
+
+        except Exception as e:
+            print(f"[HOWTO] Failed to show video controls: {e}", flush=True)
+            return
+
+        self._cancel_controls_hide()
+
+        state = None
+        try:
+            state = self.media_player.get_state()
+        except Exception:
+            pass
+
+        # If paused, keep controls visible. During playback, auto-hide.
+        if state == vlc.State.Paused or self._user_paused_video:
+            return
+
+        try:
+            hide_ms = int(config.get(
+                "how_to_use_page",
+                "video_controls_auto_hide_ms",
+                default=self.CONTROL_AUTO_HIDE_MS,
+            ))
+        except Exception:
+            hide_ms = self.CONTROL_AUTO_HIDE_MS
+
+        hide_ms = max(1200, hide_ms)
+        self._controls_hide_job = self.after(hide_ms, self._hide_video_controls)
+
+    def _hide_video_controls(self, cancel_jobs=True):
+        if cancel_jobs:
+            self._cancel_controls_hide()
+
+        try:
+            if hasattr(self, "video_controls_window"):
+                self.video_controls_window.withdraw()
+        except Exception:
+            pass
+
+        self._video_controls_visible = False
+
+        if cancel_jobs:
+            self._schedule_idle_control_reveal()
+
+    def _update_play_pause_button(self):
+        try:
+            state = self.media_player.get_state()
+        except Exception:
+            state = None
+
+        try:
+            if state == vlc.State.Playing:
+                self.video_play_pause_btn.configure(text="⏸")
+            else:
+                self.video_play_pause_btn.configure(text="▶")
+        except Exception:
+            pass
+
+    def _destroy_video_controls_window(self):
+        try:
+            if hasattr(self, "video_controls_window") and self.video_controls_window is not None:
+                self.video_controls_window.destroy()
+                self.video_controls_window = None
         except Exception:
             pass
 
@@ -1015,7 +1339,11 @@ class HowToUsePage(ctk.CTkFrame):
 
         self._video_retry_count = 0
         self._video_fallback_shown = False
+        self._user_paused_video = False
         self._cancel_video_retry()
+        self._cancel_controls_hide()
+        self._cancel_idle_control_reveal()
+        self._hide_video_controls(cancel_jobs=False)
         self.video_status.configure(text="")
         self._set_video_badge("Loading...", "dark")
 
@@ -1028,6 +1356,9 @@ class HowToUsePage(ctk.CTkFrame):
 
         self._redirecting = True
         self._cancel_video_monitor()
+        self._cancel_controls_hide()
+        self._cancel_idle_control_reveal()
+        self._hide_video_controls(cancel_jobs=False)
         self.stop_video()
 
         self.controller.show_loading_then(
@@ -1129,11 +1460,16 @@ class HowToUsePage(ctk.CTkFrame):
             self._apply_safe_audio()
             self._schedule_audio_reapply()
 
+            self._user_paused_video = False
+            self._update_play_pause_button()
+
             self._set_video_badge(
                 f"Playing • Vol {safe_volume}",
                 "success"
             )
 
+            self._hide_video_controls(cancel_jobs=False)
+            self._schedule_idle_control_reveal()
             self._start_video_monitor()
 
         except Exception as e:
@@ -1143,14 +1479,90 @@ class HowToUsePage(ctk.CTkFrame):
     def pause_video(self):
         try:
             self.media_player.pause()
+            self._user_paused_video = True
             self._cancel_video_monitor()
+            self._cancel_idle_control_reveal()
+            self._cancel_controls_hide()
+            self._update_play_pause_button()
+            self._show_video_controls_temporarily(reason="paused")
             self._set_video_badge("Paused", "warning")
         except Exception as e:
             print(f"[HOWTO] pause_video failed: {e}", flush=True)
 
+    def resume_video(self):
+        try:
+            safe_volume = self._get_safe_volume()
+            self.media_player.audio_set_mute(False)
+            self.media_player.audio_set_volume(safe_volume)
+
+            result = self.media_player.play()
+            if result == -1:
+                raise RuntimeError("VLC could not resume playback.")
+
+            self._user_paused_video = False
+            self._apply_safe_audio()
+            self._schedule_audio_reapply()
+            self._update_play_pause_button()
+            self._set_video_badge(f"Playing • Vol {safe_volume}", "success")
+            self._show_video_controls_temporarily(reason="resume")
+            self._start_video_monitor()
+        except Exception as e:
+            print(f"[HOWTO] resume_video failed: {e}", flush=True)
+            self._handle_video_failure(e)
+
+    def toggle_video_play_pause(self):
+        try:
+            state = self.media_player.get_state()
+        except Exception:
+            state = None
+
+        if state == vlc.State.Playing:
+            self.pause_video()
+        else:
+            self.resume_video()
+
+    def seek_video_relative(self, seconds):
+        try:
+            step_ms = int(float(seconds) * 1000)
+        except Exception:
+            step_ms = self.SEEK_STEP_SECONDS * 1000
+
+        try:
+            current_ms = int(self.media_player.get_time())
+        except Exception:
+            current_ms = 0
+
+        try:
+            length_ms = int(self.media_player.get_length())
+        except Exception:
+            length_ms = 0
+
+        if current_ms < 0:
+            current_ms = 0
+
+        target_ms = max(0, current_ms + step_ms)
+
+        if length_ms > 0:
+            target_ms = min(max(0, length_ms - 1000), target_ms)
+
+        try:
+            self.media_player.set_time(target_ms)
+            self._update_play_pause_button()
+            self._show_video_controls_temporarily(reason="seek")
+            print(
+                f"[HOWTO] Video seek: current_ms={current_ms}, target_ms={target_ms}, step_ms={step_ms}",
+                flush=True,
+            )
+        except Exception as e:
+            print(f"[HOWTO] seek_video_relative failed: {e}", flush=True)
+
     def stop_video(self):
         try:
             self._cancel_video_monitor()
+            self._cancel_controls_hide()
+            self._cancel_idle_control_reveal()
+            self._hide_video_controls(cancel_jobs=False)
+            self._user_paused_video = False
             self.media_player.stop()
 
             # Silence only when leaving/stopping the page.
@@ -1164,11 +1576,15 @@ class HowToUsePage(ctk.CTkFrame):
         self.stop_video()
         self.video_loaded = False
         self.current_video_path = None
+        self._user_paused_video = False
         self.video_status.configure(text="")
 
     def destroy(self):
         self._cancel_config_refresh()
         self._cancel_video_monitor()
         self._cancel_video_retry()
+        self._cancel_controls_hide()
+        self._cancel_idle_control_reveal()
         self.reset_video()
+        self._destroy_video_controls_window()
         super().destroy()

@@ -1,0 +1,1135 @@
+{
+  "69f5a5bb970d8f1d3c0a5637:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:01:50.898013+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b4259c191db5be838a8d9f\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e479dd318c74356181a4c\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e479dd318c74356181a4b\",\"createdAt\":\"2026-06-02T03:01:49.810Z\",\"updatedAt\":\"2026-06-02T03:01:49.810Z\",\"__v\":0}}"
+    }
+  },
+  "69f5a5bb970d8f1d3c0a5637:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:01:54.230620+00:00",
+    "details": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))"
+  },
+  "69f5afb4970d8f1d3c0a56c2:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:01.988152+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b4259c191db5be838a8d9f\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47a8d318c74356181a4f\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47a8d318c74356181a4e\",\"createdAt\":\"2026-06-02T03:02:00.811Z\",\"updatedAt\":\"2026-06-02T03:02:00.811Z\",\"__v\":0}}"
+    }
+  },
+  "69f5afb4970d8f1d3c0a56c2:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:02.728275+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f5afdaacc6749591874b03\",\"transactionId\":\"69f5afb4970d8f1d3c0a56c2\",\"timestamp\":\"20260502_153624\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f5afb4970d8f1d3c0a56c2:images": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:25.553936+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260502_153624": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"imageType\":\"annotated\",\"result\":{\"_id\":\"6a1e47bb84873ba130c81c99\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f5afb4970d8f1d3c0a56c2\",\"result\":\"Pending\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"original_image\":\"\",\"originalImageUrl\":\"\",\"original_image_url\":\"\",\"raw_image\":\"\",\"rawImageUrl\":\"\",\"raw_image_url\":\"\",\"testedDate\":\"2026-06-02T03:02:18.867Z\",\"createdAt\":\"2026-06-02T03:02:18.868Z\",\"updatedAt\":\"2026-06-02T03:02:18.868Z\",\"review_status\":\"none\",\"original_result\":\"\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"imageType\":\"raw\",\"result\":{\"_id\":\"6a1e47bb84873ba130c81c99\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f5afb4970d8f1d3c0a56c2\",\"result\":\"Pending\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/annotated.png\",\"original_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"originalImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"original_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"raw_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"rawImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"raw_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f5afb4970d8f1d3c0a56c2/HIV123/raw.png\",\"testedDate\":\"2026-06-02T03:02:18.867Z\",\"createdAt\":\"2026-06-02T03:02:18.868Z\",\"updatedAt\":\"2026-06-02T03:02:24.501Z\",\"review_status\":\"none\",\"original_result\":\"\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        }
+      }
+    }
+  },
+  "TEMP-UI-1777699674:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:26.347803+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c1d318c74356181a56\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c1d318c74356181a55\",\"createdAt\":\"2026-06-02T03:02:25.295Z\",\"updatedAt\":\"2026-06-02T03:02:25.295Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777699674:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:26.853322+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d25b184873ba130c811a8\",\"transactionId\":\"TEMP-UI-1777699674\",\"timestamp\":\"20260502_132754\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777656360:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:27.500329+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c2d318c74356181a5b\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c2d318c74356181a5a\",\"createdAt\":\"2026-06-02T03:02:26.470Z\",\"updatedAt\":\"2026-06-02T03:02:26.470Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777656360:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:27.972986+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383584873ba130c8129d\",\"transactionId\":\"TEMP-UI-1777656360\",\"timestamp\":\"20260502_012601\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777696132:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:28.706488+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c3d318c74356181a60\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c3d318c74356181a5f\",\"createdAt\":\"2026-06-02T03:02:27.674Z\",\"updatedAt\":\"2026-06-02T03:02:27.674Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777696132:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:29.107002+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f57d88acc6749591874a02\",\"transactionId\":\"TEMP-UI-1777696132\",\"timestamp\":\"20260502_122853\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777693174:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:29.753739+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c4d318c74356181a65\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c4d318c74356181a64\",\"createdAt\":\"2026-06-02T03:02:28.733Z\",\"updatedAt\":\"2026-06-02T03:02:28.733Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777693174:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:30.790371+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382b84873ba130c81293\",\"transactionId\":\"TEMP-UI-1777693174\",\"timestamp\":\"20260502_113935\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777654123:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:31.460029+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c6d318c74356181a6a\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c6d318c74356181a69\",\"createdAt\":\"2026-06-02T03:02:30.427Z\",\"updatedAt\":\"2026-06-02T03:02:30.427Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777654123:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:31.935301+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383b84873ba130c812a8\",\"transactionId\":\"TEMP-UI-1777654123\",\"timestamp\":\"20260502_004843\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777679688:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:32.618441+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c7d318c74356181a6f\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c7d318c74356181a6e\",\"createdAt\":\"2026-06-02T03:02:31.594Z\",\"updatedAt\":\"2026-06-02T03:02:31.594Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777679688:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:33.126426+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383384873ba130c8129a\",\"transactionId\":\"TEMP-UI-1777679688\",\"timestamp\":\"20260502_075448\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777692468:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:33.819092+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47c8d318c74356181a74\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47c8d318c74356181a73\",\"createdAt\":\"2026-06-02T03:02:32.756Z\",\"updatedAt\":\"2026-06-02T03:02:32.756Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777692468:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:34.283663+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382f84873ba130c81296\",\"transactionId\":\"TEMP-UI-1777692468\",\"timestamp\":\"20260502_112749\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f4d547c980c8f4a2c1f1e8:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:35.014987+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47cad318c74356181a79\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47cad318c74356181a78\",\"createdAt\":\"2026-06-02T03:02:34.007Z\",\"updatedAt\":\"2026-06-02T03:02:34.007Z\",\"__v\":0}}"
+    }
+  },
+  "69f4d547c980c8f4a2c1f1e8:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:35.592917+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d386984873ba130c812aa\",\"transactionId\":\"69f4d547c980c8f4a2c1f1e8\",\"timestamp\":\"20260502_003104\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777693903:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:36.319316+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47cbd318c74356181a7e\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47cbd318c74356181a7d\",\"createdAt\":\"2026-06-02T03:02:35.293Z\",\"updatedAt\":\"2026-06-02T03:02:35.293Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777693903:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:36.777544+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382a84873ba130c81290\",\"transactionId\":\"TEMP-UI-1777693903\",\"timestamp\":\"20260502_115143\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777694327:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:37.732686+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47ccd318c74356181a83\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47ccd318c74356181a82\",\"createdAt\":\"2026-06-02T03:02:36.714Z\",\"updatedAt\":\"2026-06-02T03:02:36.714Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777694327:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:38.481038+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382984873ba130c8128f\",\"transactionId\":\"TEMP-UI-1777694327\",\"timestamp\":\"20260502_115847\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777693580:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:39.388654+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47ced318c74356181a88\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47ced318c74356181a87\",\"createdAt\":\"2026-06-02T03:02:38.369Z\",\"updatedAt\":\"2026-06-02T03:02:38.369Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777693580:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:40.095760+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382a84873ba130c81291\",\"transactionId\":\"TEMP-UI-1777693580\",\"timestamp\":\"20260502_114620\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777656124:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:40.754941+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47cfd318c74356181a8d\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47cfd318c74356181a8c\",\"createdAt\":\"2026-06-02T03:02:39.708Z\",\"updatedAt\":\"2026-06-02T03:02:39.708Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777656124:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:41.217161+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383684873ba130c8129f\",\"transactionId\":\"TEMP-UI-1777656124\",\"timestamp\":\"20260502_012205\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777655134:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:41.894245+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47d0d318c74356181a92\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47d0d318c74356181a91\",\"createdAt\":\"2026-06-02T03:02:40.871Z\",\"updatedAt\":\"2026-06-02T03:02:40.871Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777655134:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:42.319275+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383884873ba130c812a3\",\"transactionId\":\"TEMP-UI-1777655134\",\"timestamp\":\"20260502_010535\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777656285:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:42.911551+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47d1d318c74356181a97\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47d1d318c74356181a96\",\"createdAt\":\"2026-06-02T03:02:41.899Z\",\"updatedAt\":\"2026-06-02T03:02:41.899Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777656285:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:43.373747+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383584873ba130c8129e\",\"transactionId\":\"TEMP-UI-1777656285\",\"timestamp\":\"20260502_012446\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777656474:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:44.014033+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47d2d318c74356181a9c\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47d2d318c74356181a9b\",\"createdAt\":\"2026-06-02T03:02:42.987Z\",\"updatedAt\":\"2026-06-02T03:02:42.987Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777656474:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:44.573101+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383484873ba130c8129c\",\"transactionId\":\"TEMP-UI-1777656474\",\"timestamp\":\"20260502_012754\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777655958:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:45.275028+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47d4d318c74356181aa1\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47d4d318c74356181aa0\",\"createdAt\":\"2026-06-02T03:02:44.220Z\",\"updatedAt\":\"2026-06-02T03:02:44.220Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777655958:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:45.733070+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383784873ba130c812a0\",\"transactionId\":\"TEMP-UI-1777655958\",\"timestamp\":\"20260502_011918\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777693285:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:48.369107+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47d5d318c74356181aa6\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47d5d318c74356181aa5\",\"createdAt\":\"2026-06-02T03:02:45.824Z\",\"updatedAt\":\"2026-06-02T03:02:45.824Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777693285:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:50.292537+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382b84873ba130c81292\",\"transactionId\":\"TEMP-UI-1777693285\",\"timestamp\":\"20260502_114126\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777654935:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:51.052665+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47d9d318c74356181aab\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47d9d318c74356181aaa\",\"createdAt\":\"2026-06-02T03:02:49.995Z\",\"updatedAt\":\"2026-06-02T03:02:49.995Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777654935:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:51.526763+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383984873ba130c812a5\",\"transactionId\":\"TEMP-UI-1777654935\",\"timestamp\":\"20260502_010216\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777655381:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:52.214128+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47dbd318c74356181ab0\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47dbd318c74356181aaf\",\"createdAt\":\"2026-06-02T03:02:51.202Z\",\"updatedAt\":\"2026-06-02T03:02:51.202Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777655381:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:52.654408+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383884873ba130c812a2\",\"transactionId\":\"TEMP-UI-1777655381\",\"timestamp\":\"20260502_010941\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777691939:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:53.335275+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47dcd318c74356181ab5\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47dcd318c74356181ab4\",\"createdAt\":\"2026-06-02T03:02:52.280Z\",\"updatedAt\":\"2026-06-02T03:02:52.280Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777691939:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:53.754602+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383284873ba130c81298\",\"transactionId\":\"TEMP-UI-1777691939\",\"timestamp\":\"20260502_111900\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777656513:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:54.429595+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47ddd318c74356181aba\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47ddd318c74356181ab9\",\"createdAt\":\"2026-06-02T03:02:53.379Z\",\"updatedAt\":\"2026-06-02T03:02:53.379Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777656513:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:54.923856+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383484873ba130c8129b\",\"transactionId\":\"TEMP-UI-1777656513\",\"timestamp\":\"20260502_012834\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777653888:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:55.560901+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47ded318c74356181abf\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47ded318c74356181abe\",\"createdAt\":\"2026-06-02T03:02:54.547Z\",\"updatedAt\":\"2026-06-02T03:02:54.547Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777653888:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:56.014056+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d386984873ba130c812a9\",\"transactionId\":\"TEMP-UI-1777653888\",\"timestamp\":\"20260502_004449\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777691588:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:56.649610+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47dfd318c74356181ac4\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47dfd318c74356181ac3\",\"createdAt\":\"2026-06-02T03:02:55.609Z\",\"updatedAt\":\"2026-06-02T03:02:55.609Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777691588:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:57.120378+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383284873ba130c81299\",\"transactionId\":\"TEMP-UI-1777691588\",\"timestamp\":\"20260502_111309\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777692819:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:57.897664+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e0d318c74356181ac9\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e0d318c74356181ac8\",\"createdAt\":\"2026-06-02T03:02:56.762Z\",\"updatedAt\":\"2026-06-02T03:02:56.762Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777692819:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:58.354697+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382e84873ba130c81295\",\"transactionId\":\"TEMP-UI-1777692819\",\"timestamp\":\"20260502_113339\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777692956:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:59.036424+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e2d318c74356181ace\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e2d318c74356181acd\",\"createdAt\":\"2026-06-02T03:02:58.016Z\",\"updatedAt\":\"2026-06-02T03:02:58.016Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777692956:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:02:59.527353+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d382d84873ba130c81294\",\"transactionId\":\"TEMP-UI-1777692956\",\"timestamp\":\"20260502_113557\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777654699:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:00.198374+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e3d318c74356181ad3\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e3d318c74356181ad2\",\"createdAt\":\"2026-06-02T03:02:59.142Z\",\"updatedAt\":\"2026-06-02T03:02:59.142Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777654699:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:00.614624+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383a84873ba130c812a6\",\"transactionId\":\"TEMP-UI-1777654699\",\"timestamp\":\"20260502_005820\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777654437:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:01.230626+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e4d318c74356181ad8\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e4d318c74356181ad7\",\"createdAt\":\"2026-06-02T03:03:00.213Z\",\"updatedAt\":\"2026-06-02T03:03:00.213Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777654437:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:01.674735+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383a84873ba130c812a7\",\"transactionId\":\"TEMP-UI-1777654437\",\"timestamp\":\"20260502_005358\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777692200:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:02.293856+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e5d318c74356181add\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e5d318c74356181adc\",\"createdAt\":\"2026-06-02T03:03:01.267Z\",\"updatedAt\":\"2026-06-02T03:03:01.267Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777692200:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:02.749857+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383184873ba130c81297\",\"transactionId\":\"TEMP-UI-1777692200\",\"timestamp\":\"20260502_112321\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "TEMP-UI-1777655590:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:03.402795+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e6d318c74356181ae2\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e6d318c74356181ae1\",\"createdAt\":\"2026-06-02T03:03:02.386Z\",\"updatedAt\":\"2026-06-02T03:03:02.386Z\",\"__v\":0}}"
+    }
+  },
+  "TEMP-UI-1777655590:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:03.867653+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"6a1d383784873ba130c812a1\",\"transactionId\":\"TEMP-UI-1777655590\",\"timestamp\":\"20260502_011311\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f59f724f21977d055d258f:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:04.571197+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e47e7d318c74356181ae7\"}],\"purchasedDate\":\"2026-05-02T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e7d318c74356181ae6\",\"createdAt\":\"2026-06-02T03:03:03.535Z\",\"updatedAt\":\"2026-06-02T03:03:03.535Z\",\"__v\":0}}"
+    }
+  },
+  "69f59f724f21977d055d258f:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:05.000041+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f59fb4acc6749591874a8a\",\"transactionId\":\"69f59f724f21977d055d258f\",\"timestamp\":\"20260502_145439\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f70e1df78d191accc07b15:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:05.636691+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b4259c191db5be838a8d9f\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Invalid\",\"_id\":\"6a1e47e8d318c74356181aec\"}],\"purchasedDate\":\"2026-05-03T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e47e8d318c74356181aeb\",\"createdAt\":\"2026-06-02T03:03:04.609Z\",\"updatedAt\":\"2026-06-02T03:03:04.609Z\",\"__v\":0}}"
+    }
+  },
+  "69f70e1df78d191accc07b15:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:06.032020+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f70e42acc674959187513a\",\"transactionId\":\"69f70e1df78d191accc07b15\",\"timestamp\":\"20260503_160051\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f70e1df78d191accc07b15:result": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:06.617885+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"result\":{\"_id\":\"6a1e47ea84873ba130c81c9b\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f70e1df78d191accc07b15\",\"result\":\"Invalid\",\"testedDate\":\"2026-06-02T03:03:05.371Z\",\"updatedAt\":\"2026-06-02T03:03:05.371Z\",\"createdAt\":\"2026-06-02T03:03:05.371Z\",\"result_image\":\"\",\"resultImageUrl\":\"\",\"result_image_url\":\"\",\"annotated_image\":\"\",\"annotatedImageUrl\":\"\",\"annotated_image_url\":\"\",\"original_image\":\"\",\"originalImageUrl\":\"\",\"original_image_url\":\"\",\"raw_image\":\"\",\"rawImageUrl\":\"\",\"raw_image_url\":\"\",\"review_status\":\"under_review\",\"original_result\":\"Invalid\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"},\"transaction_patch\":{\"patched\":false,\"matched\":0,\"modified\":0,\"reason\":\"transaction_not_found\"}}"
+    }
+  },
+  "69f70e1df78d191accc07b15:images": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:28.277297+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_160051": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"imageType\":\"annotated\",\"result\":{\"_id\":\"6a1e47ea84873ba130c81c9b\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f70e1df78d191accc07b15\",\"result\":\"Invalid\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"original_image\":\"\",\"originalImageUrl\":\"\",\"original_image_url\":\"\",\"raw_image\":\"\",\"rawImageUrl\":\"\",\"raw_image_url\":\"\",\"testedDate\":\"2026-06-02T03:03:05.371Z\",\"createdAt\":\"2026-06-02T03:03:05.371Z\",\"updatedAt\":\"2026-06-02T03:03:20.231Z\",\"review_status\":\"under_review\",\"original_result\":\"Invalid\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"imageType\":\"raw\",\"result\":{\"_id\":\"6a1e47ea84873ba130c81c9b\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f70e1df78d191accc07b15\",\"result\":\"Invalid\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/annotated.png\",\"original_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"originalImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"original_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"raw_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"rawImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"raw_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f70e1df78d191accc07b15/HIV123/raw.png\",\"testedDate\":\"2026-06-02T03:03:05.371Z\",\"createdAt\":\"2026-06-02T03:03:05.371Z\",\"updatedAt\":\"2026-06-02T03:03:27.146Z\",\"review_status\":\"under_review\",\"original_result\":\"Invalid\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        }
+      }
+    }
+  },
+  "69f718abf78d191accc07ba7:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:29.254832+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b4259c191db5be838a8d9f\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Invalid\",\"_id\":\"6a1e4800d318c74356181af8\"}],\"purchasedDate\":\"2026-05-03T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e4800d318c74356181af7\",\"createdAt\":\"2026-06-02T03:03:28.224Z\",\"updatedAt\":\"2026-06-02T03:03:28.224Z\",\"__v\":0}}"
+    }
+  },
+  "69f718abf78d191accc07ba7:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:29.979018+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f718d2acc67495918751bb\",\"transactionId\":\"69f718abf78d191accc07ba7\",\"timestamp\":\"20260503_174344\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f718abf78d191accc07ba7:result": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:30.867025+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"result\":{\"_id\":\"6a1e480284873ba130c81c9c\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f718abf78d191accc07ba7\",\"result\":\"Invalid\",\"testedDate\":\"2026-06-02T03:03:29.634Z\",\"updatedAt\":\"2026-06-02T03:03:29.634Z\",\"createdAt\":\"2026-06-02T03:03:29.634Z\",\"result_image\":\"\",\"resultImageUrl\":\"\",\"result_image_url\":\"\",\"annotated_image\":\"\",\"annotatedImageUrl\":\"\",\"annotated_image_url\":\"\",\"original_image\":\"\",\"originalImageUrl\":\"\",\"original_image_url\":\"\",\"raw_image\":\"\",\"rawImageUrl\":\"\",\"raw_image_url\":\"\",\"review_status\":\"under_review\",\"original_result\":\"Invalid\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"},\"transaction_patch\":{\"patched\":false,\"matched\":0,\"modified\":0,\"reason\":\"transaction_not_found\"}}"
+    }
+  },
+  "69f718abf78d191accc07ba7:images": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:48.213258+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_174344": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"imageType\":\"annotated\",\"result\":{\"_id\":\"6a1e480284873ba130c81c9c\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f718abf78d191accc07ba7\",\"result\":\"Invalid\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"original_image\":\"\",\"originalImageUrl\":\"\",\"original_image_url\":\"\",\"raw_image\":\"\",\"rawImageUrl\":\"\",\"raw_image_url\":\"\",\"testedDate\":\"2026-06-02T03:03:29.634Z\",\"createdAt\":\"2026-06-02T03:03:29.634Z\",\"updatedAt\":\"2026-06-02T03:03:41.145Z\",\"review_status\":\"under_review\",\"original_result\":\"Invalid\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"imageType\":\"raw\",\"result\":{\"_id\":\"6a1e480284873ba130c81c9c\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"HIV123\",\"transaction_id\":\"69f718abf78d191accc07ba7\",\"result\":\"Invalid\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/annotated.png\",\"original_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"originalImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"original_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"raw_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"rawImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"raw_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f718abf78d191accc07ba7/HIV123/raw.png\",\"testedDate\":\"2026-06-02T03:03:29.634Z\",\"createdAt\":\"2026-06-02T03:03:29.634Z\",\"updatedAt\":\"2026-06-02T03:03:47.155Z\",\"review_status\":\"under_review\",\"original_result\":\"Invalid\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        }
+      }
+    }
+  },
+  "69f6dcb9f78d191accc0798b:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:48.896627+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b4259c191db5be838a8d9f\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e4813d318c74356181b05\"}],\"purchasedDate\":\"2026-05-03T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e4813d318c74356181b04\",\"createdAt\":\"2026-06-02T03:03:47.874Z\",\"updatedAt\":\"2026-06-02T03:03:47.874Z\",\"__v\":0}}"
+    }
+  },
+  "69f6dcb9f78d191accc0798b:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:03:49.381315+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f6dcdfacc67495918750b2\",\"transactionId\":\"69f6dcb9f78d191accc0798b\",\"timestamp\":\"20260503_131753\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f6dcb9f78d191accc0798b:images": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:04:06.219141+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_131753": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"imageType\":\"annotated\",\"result\":{\"_id\":\"6a1e481f84873ba130c81c9d\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"DENGUE123\",\"transaction_id\":\"69f6dcb9f78d191accc0798b\",\"result\":\"Pending\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"original_image\":\"\",\"originalImageUrl\":\"\",\"original_image_url\":\"\",\"raw_image\":\"\",\"rawImageUrl\":\"\",\"raw_image_url\":\"\",\"testedDate\":\"2026-06-02T03:03:58.961Z\",\"createdAt\":\"2026-06-02T03:03:58.962Z\",\"updatedAt\":\"2026-06-02T03:03:58.962Z\",\"review_status\":\"none\",\"original_result\":\"\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": true,
+          "status_code": 200,
+          "text": "{\"success\":true,\"imageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"imageType\":\"raw\",\"result\":{\"_id\":\"6a1e481f84873ba130c81c9d\",\"user_id\":\"69b4259c191db5be838a8d9f\",\"productID\":\"DENGUE123\",\"transaction_id\":\"69f6dcb9f78d191accc0798b\",\"result\":\"Pending\",\"result_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"resultImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"result_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"annotated_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"annotatedImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"annotated_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/annotated.png\",\"original_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"originalImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"original_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"raw_image\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"rawImageUrl\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"raw_image_url\":\"https://pub-ecc2a0799f8246b7b169e34efc3e0b53.r2.dev/capture_sessions/69b4259c191db5be838a8d9f/69f6dcb9f78d191accc0798b/DENGUE123/raw.png\",\"testedDate\":\"2026-06-02T03:03:58.961Z\",\"createdAt\":\"2026-06-02T03:03:58.962Z\",\"updatedAt\":\"2026-06-02T03:04:05.135Z\",\"review_status\":\"none\",\"original_result\":\"\",\"override_result\":\"\",\"reviewed_by\":null,\"reviewed_at\":null,\"review_notes\":\"\"}}"
+        }
+      }
+    }
+  },
+  "69f6fbcff78d191accc07a29:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:04:06.870471+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b4259c191db5be838a8d9f\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Invalid\",\"_id\":\"6a1e4825d318c74356181b0c\"}],\"purchasedDate\":\"2026-05-03T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e4825d318c74356181b0b\",\"createdAt\":\"2026-06-02T03:04:05.856Z\",\"updatedAt\":\"2026-06-02T03:04:05.856Z\",\"__v\":0}}"
+    }
+  },
+  "69f6fbcff78d191accc07a29:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:04:27.023230+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Read timed out. (read timeout=20)"
+  },
+  "69f6fbcff78d191accc07a29:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:04:47.042031+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317ed0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f6fbcff78d191accc07a29:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:05:17.122096+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_154035": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317750>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317b10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "TEMP-UI-1777780768:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:05:31.206187+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d310>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "TEMP-UI-1777780768:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:05:45.986080+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c550>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "TEMP-UI-1777780768:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:06:12.866021+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_115929": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c050>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317b10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f6dd45f78d191accc079d2:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:06:29.250044+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b316e90>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f6dd45f78d191accc079d2:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:06:45.377981+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317ed0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f6dd45f78d191accc079d2:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:07:14.050114+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_133018": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317390>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2ccd0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f6ff54f78d191accc07a5d:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:07:30.434048+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c550>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f6ff54f78d191accc07a5d:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:07:46.434003+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c690>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f6ff54f78d191accc07a5d:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:08:02.562076+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d450>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f6ff54f78d191accc07a5d:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:08:33.538004+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_155536": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d590>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d810>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f73144f78d191accc07da4:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:08:49.926011+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2dd10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f73144f78d191accc07da4:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:09:06.056541+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e210>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f71f14f78d191accc07c63:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:09:22.437976+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e5d0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f71f14f78d191accc07c63:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:09:38.562022+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e990>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f71f14f78d191accc07c63:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:10:10.690619+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b791783385f884c12193b6/20260503_180704": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317390>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317ed0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f752eef78d191accc07e48:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:10:27.078025+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317250>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f752eef78d191accc07e48:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:10:43.233951+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317b10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7565f692c05c35cf14b43:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:10:59.618024+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e990>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7565f692c05c35cf14b43:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:11:15.746040+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e5d0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f72f33f78d191accc07d57:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:11:31.879386+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e210>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f72f33f78d191accc07d57:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:11:48.034237+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2dd10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f73f49f78d191accc07dd0:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:12:04.417962+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2df90>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f73f49f78d191accc07dd0:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:12:20.550118+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d950>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7421ff78d191accc07df7:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:12:36.930234+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d6d0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7421ff78d191accc07df7:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:12:53.062165+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2ce10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7008ef78d191accc07a86:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:13:09.442037+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c910>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7008ef78d191accc07a86:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:13:25.574021+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d310>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f7008ef78d191accc07a86:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:13:57.858109+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260503_160051": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d1d0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2ca50>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "TEMP-UI-1777802823:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:14:14.241951+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317b10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "TEMP-UI-1777802823:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:14:30.370037+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317250>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "TEMP-UI-1777802823:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:15:01.186043+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b791783385f884c12193b6/20260503_180704": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317ed0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317610>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f91ae059612fa7fd531d19:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:15:17.314123+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2f250>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f91ae059612fa7fd531d19:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:15:33.442029+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2cb90>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f91ae059612fa7fd531d19:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:15:49.570014+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c050>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f91ae059612fa7fd531d19:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:16:21.826084+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260505_061741": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c410>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c550>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f9310230b3858b0174db47:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:16:38.209990+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d090>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f9310230b3858b0174db47:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:16:54.342091+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d950>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f9310230b3858b0174db47:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:17:26.626091+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260505_075206": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2dbd0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2dd10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f959e730b3858b0174e188:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:17:41.954006+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e350>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f959e730b3858b0174e188:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:17:58.113988+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e850>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f959e730b3858b0174e188:result": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:18:14.243392+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/results (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2ec10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f959e730b3858b0174e188:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:19:02.658468+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260505_104635": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317610>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "original.png": {
+          "image_type": "original",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b316ad0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b3179d0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "69f9230159612fa7fd531d88:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:19:19.046199+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2b317b10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f9230159612fa7fd531d88:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:19:35.169998+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2ead0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f9320430b3858b0174db96:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:19:51.554030+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e710>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f9320430b3858b0174db96:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:20:06.210033+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2dd10>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "69f9320430b3858b0174db96:images": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:20:38.466073+00:00",
+    "details": {
+      "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260505_075206": {
+        "annotated.png": {
+          "image_type": "annotated",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2e0d0>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        },
+        "raw.png": {
+          "image_type": "raw",
+          "ok": false,
+          "error": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/device/image/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2df90>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+        }
+      }
+    }
+  },
+  "CASH-BYPASS-1777910682:transaction": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:20:54.850643+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/transaction (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2d090>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "CASH-BYPASS-1777910682:receipt": {
+    "ok": false,
+    "updated_at": "2026-06-02T03:21:10.978025+00:00",
+    "details": "HTTPSConnectionPool(host='irretraceably-chirographical-shayne.ngrok-free.dev', port=443): Max retries exceeded with url: /api/receipts/upload (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7fff2ad2c550>: Failed to resolve 'irretraceably-chirographical-shayne.ngrok-free.dev' ([Errno -3] Temporary failure in name resolution)\"))"
+  },
+  "CASH-BYPASS-1777915511:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:16.587142+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":false,\"error\":\"Transaction validation failed: user_id: Cast to ObjectId failed for value \\\"qr-bypass-user\\\" (type string) at path \\\"user_id\\\" because of \\\"BSONError\\\"\"}"
+    }
+  },
+  "CASH-BYPASS-1777915511:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:17.082495+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f8d679acc67495918759d9\",\"transactionId\":\"CASH-BYPASS-1777915511\",\"timestamp\":\"20260505_012512\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "CASH-BYPASS-1777911063:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:22.940096+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":false,\"error\":\"Transaction validation failed: user_id: Cast to ObjectId failed for value \\\"qr-bypass-user\\\" (type string) at path \\\"user_id\\\" because of \\\"BSONError\\\"\"}"
+    }
+  },
+  "CASH-BYPASS-1777911063:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:24.306023+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f8c518acc6749591875960\",\"transactionId\":\"CASH-BYPASS-1777911063\",\"timestamp\":\"20260505_001104\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f92b8c30b3858b0174dafd:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:25.329714+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e4c34d318c74356181b27\"}],\"purchasedDate\":\"2026-05-05T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e4c34d318c74356181b26\",\"createdAt\":\"2026-06-02T03:21:24.319Z\",\"updatedAt\":\"2026-06-02T03:21:24.319Z\",\"__v\":0}}"
+    }
+  },
+  "69f92b8c30b3858b0174dafd:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:26.139876+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f92bb3acc6749591875b60\",\"transactionId\":\"69f92b8c30b3858b0174dafd\",\"timestamp\":\"20260505_072849\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  },
+  "69f9493a30b3858b0174dd33:transaction": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:27.062809+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"success\":true,\"transaction\":{\"user_id\":\"69b791783385f884c12193b6\",\"status\":\"completed\",\"items\":[{\"name\":\"Dengue Confidex Kit\",\"productID\":\"DENGUE123\",\"type\":\"\",\"price\":1,\"discount\":0,\"finalPrice\":0,\"result\":\"Pending\",\"_id\":\"6a1e4c36d318c74356181b2c\"}],\"purchasedDate\":\"2026-05-05T00:00:00.000Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1e4c36d318c74356181b2b\",\"createdAt\":\"2026-06-02T03:21:26.044Z\",\"updatedAt\":\"2026-06-02T03:21:26.044Z\",\"__v\":0}}"
+    }
+  },
+  "69f9493a30b3858b0174dd33:receipt": {
+    "ok": true,
+    "updated_at": "2026-06-02T03:21:27.720555+00:00",
+    "details": {
+      "status_code": 200,
+      "text": "{\"ok\":true,\"receiptId\":\"69f9496aacc6749591875bef\",\"transactionId\":\"69f9493a30b3858b0174dd33\",\"timestamp\":\"20260505_092737\",\"boothId\":\"69cf984a5f122c71ee8d211b\"}"
+    }
+  }
+}

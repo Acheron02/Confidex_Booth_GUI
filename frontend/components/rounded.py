@@ -26,6 +26,16 @@ def round_rect_points(x1, y1, x2, y2, r):
     ]
 
 
+def _exists(widget):
+    try:
+        return bool(widget.winfo_exists())
+    except Exception:
+        return False
+
+
+def _is_stale_tk_error(exc):
+    return "invalid command name" in str(exc).lower() or "application has been destroyed" in str(exc).lower()
+
 class RoundedContainer(tk.Frame):
     def __init__(
         self,
@@ -72,73 +82,97 @@ class RoundedContainer(tk.Frame):
 
         self.content.bind('<Configure>', self._sync_layout, add='+')
         self.bind('<Configure>', self._sync_layout, add='+')
-        self.after_idle(self._sync_layout)
+        self._safe_after_idle(self._sync_layout)
+
+    def _safe_after_idle(self, callback):
+        try:
+            if _exists(self):
+                self.after_idle(callback)
+        except tk.TclError as exc:
+            if not _is_stale_tk_error(exc):
+                raise
+        except Exception:
+            pass
 
     def _sync_layout(self, event=None):
-        self.update_idletasks()
+        try:
+            if not (_exists(self) and _exists(self.canvas) and _exists(self.content)):
+                return
 
-        current_w = self.winfo_width()
-        current_h = self.winfo_height()
+            self.update_idletasks()
 
-        if self._auto_size:
-            content_req_w = self.content.winfo_reqwidth()
-            content_req_h = self.content.winfo_reqheight()
-            total_extra = (self._pad * 2) + (self._border_width * 2)
+            current_w = self.winfo_width()
+            current_h = self.winfo_height()
 
-            target_w = self._explicit_width if self._explicit_width is not None else content_req_w + total_extra
-            target_h = self._explicit_height if self._explicit_height is not None else content_req_h + total_extra
+            if self._auto_size:
+                content_req_w = self.content.winfo_reqwidth()
+                content_req_h = self.content.winfo_reqheight()
+                total_extra = (self._pad * 2) + (self._border_width * 2)
 
-            if current_w != target_w or current_h != target_h:
-                tk.Frame.configure(self, width=target_w, height=target_h)
-                current_w = target_w
-                current_h = target_h
-        else:
-            if self._explicit_width is not None and current_w <= 1:
-                current_w = self._explicit_width
-                tk.Frame.configure(self, width=current_w)
+                target_w = self._explicit_width if self._explicit_width is not None else content_req_w + total_extra
+                target_h = self._explicit_height if self._explicit_height is not None else content_req_h + total_extra
 
-            if self._explicit_height is not None and current_h <= 1:
-                current_h = self._explicit_height
-                tk.Frame.configure(self, height=current_h)
+                if current_w != target_w or current_h != target_h:
+                    tk.Frame.configure(self, width=target_w, height=target_h)
+                    current_w = target_w
+                    current_h = target_h
+            else:
+                if self._explicit_width is not None and current_w <= 1:
+                    current_w = self._explicit_width
+                    tk.Frame.configure(self, width=current_w)
 
-        w = max(2, current_w)
-        h = max(2, current_h)
-        inset = self._pad + self._border_width
+                if self._explicit_height is not None and current_h <= 1:
+                    current_h = self._explicit_height
+                    tk.Frame.configure(self, height=current_h)
 
-        self.content.place(
-            x=inset,
-            y=inset,
-            width=max(1, w - 2 * inset),
-            height=max(1, h - 2 * inset)
-        )
+            w = max(2, current_w)
+            h = max(2, current_h)
+            inset = self._pad + self._border_width
 
-        self._redraw()
+            self.content.place(
+                x=inset,
+                y=inset,
+                width=max(1, w - 2 * inset),
+                height=max(1, h - 2 * inset)
+            )
+
+            self._redraw()
+        except tk.TclError as exc:
+            if not _is_stale_tk_error(exc):
+                raise
 
     def _redraw(self, event=None):
-        w = max(2, self.winfo_width())
-        h = max(2, self.winfo_height())
-        r = min(self._radius, w // 2, h // 2)
+        try:
+            if not (_exists(self) and _exists(self.canvas) and _exists(self.content)):
+                return
 
-        self.canvas.delete('all')
+            w = max(2, self.winfo_width())
+            h = max(2, self.winfo_height())
+            r = min(self._radius, w // 2, h // 2)
 
-        if self._border_width > 0:
-            self._draw_shape(0, 0, w, h, self._border, r)
-            inset = self._border_width
-        else:
-            inset = 0
+            self.canvas.delete('all')
 
-        self._draw_shape(
-            inset,
-            inset,
-            w - inset,
-            h - inset,
-            self._fill,
-            max(0, r - inset)
-        )
+            if self._border_width > 0:
+                self._draw_shape(0, 0, w, h, self._border, r)
+                inset = self._border_width
+            else:
+                inset = 0
 
-        self.content.configure(bg=self._fill)
-        tk.Frame.configure(self, bg=self._bg)
-        tk.Canvas.configure(self.canvas, bg=self._bg)
+            self._draw_shape(
+                inset,
+                inset,
+                w - inset,
+                h - inset,
+                self._fill,
+                max(0, r - inset)
+            )
+
+            self.content.configure(bg=self._fill)
+            tk.Frame.configure(self, bg=self._bg)
+            tk.Canvas.configure(self.canvas, bg=self._bg)
+        except tk.TclError as exc:
+            if not _is_stale_tk_error(exc):
+                raise
 
     def _draw_shape(self, x1, y1, x2, y2, fill, r):
         if x2 <= x1 or y2 <= y1:
@@ -180,7 +214,7 @@ class RoundedContainer(tk.Frame):
             tk.Frame.configure(self, height=kw.pop('height'))
 
         result = tk.Frame.configure(self, cnf or {}, **kw)
-        self.after_idle(self._sync_layout)
+        self._safe_after_idle(self._sync_layout)
         return result
 
     config = configure
@@ -256,44 +290,66 @@ class PillButton(tk.Canvas):
 
         self.bind('<Configure>', self._redraw)
         self.bind('<Button-1>', self._on_click)
-        self.after_idle(self._sync_size)
+        self._safe_after_idle(self._sync_size)
+
+    def _safe_after_idle(self, callback):
+        try:
+            if _exists(self):
+                self.after_idle(callback)
+        except tk.TclError as exc:
+            if not _is_stale_tk_error(exc):
+                raise
+        except Exception:
+            pass
 
     def _measure_text_width(self):
         f = tkfont.Font(font=self._font)
         return f.measure(self._text)
 
     def _sync_size(self):
-        width = self._fixed_width
-        if width is None:
-            width = self._measure_text_width() + self._padx * 2
+        try:
+            if not _exists(self):
+                return
+            width = self._fixed_width
+            if width is None:
+                width = self._measure_text_width() + self._padx * 2
 
-        width = max(width, self._height)
-        tk.Canvas.configure(self, width=width, height=self._height)
-        self.after_idle(self._redraw)
+            width = max(width, self._height)
+            tk.Canvas.configure(self, width=width, height=self._height)
+            self._safe_after_idle(self._redraw)
+        except tk.TclError as exc:
+            if not _is_stale_tk_error(exc):
+                raise
 
     def _redraw(self, event=None):
-        w = max(2, self.winfo_width())
-        h = max(2, self.winfo_height())
-        r = min(self._radius, w // 2, h // 2)
-        fill = self._fill if self._state != 'disabled' else self._disabled_color
+        try:
+            if not _exists(self):
+                return
+            w = max(2, self.winfo_width())
+            h = max(2, self.winfo_height())
+            r = min(self._radius, w // 2, h // 2)
+            fill = self._fill if self._state != 'disabled' else self._disabled_color
 
-        self.delete('all')
-        tk.Canvas.configure(self, bg=self._outer_bg)
+            self.delete('all')
+            tk.Canvas.configure(self, bg=self._outer_bg)
 
-        self.create_polygon(
-            round_rect_points(0, 0, w, h, r),
-            smooth=True,
-            splinesteps=24,
-            fill=fill,
-            outline=fill
-        )
-        self.create_text(
-            w / 2,
-            h / 2,
-            text=self._text,
-            fill=self._text_color,
-            font=self._font
-        )
+            self.create_polygon(
+                round_rect_points(0, 0, w, h, r),
+                smooth=True,
+                splinesteps=24,
+                fill=fill,
+                outline=fill
+            )
+            self.create_text(
+                w / 2,
+                h / 2,
+                text=self._text,
+                fill=self._text_color,
+                font=self._font
+            )
+        except tk.TclError as exc:
+            if not _is_stale_tk_error(exc):
+                raise
 
     def _on_click(self, event=None):
         if self._state == 'disabled':
@@ -334,9 +390,9 @@ class PillButton(tk.Canvas):
         result = tk.Canvas.configure(self, cnf or {}, **kw)
 
         if resize_needed:
-            self.after_idle(self._sync_size)
+            self._safe_after_idle(self._sync_size)
         else:
-            self.after_idle(self._redraw)
+            self._safe_after_idle(self._redraw)
 
         return result
 

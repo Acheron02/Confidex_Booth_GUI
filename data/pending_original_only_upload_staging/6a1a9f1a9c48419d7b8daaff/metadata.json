@@ -1,0 +1,204 @@
+{
+  "recovered_pending_inference": true,
+  "recovered_at": "2026-06-02T03:29:56.915568+00:00",
+  "transaction_id": "6a1a9f1a9c48419d7b8daaff",
+  "user_id": "69d0e493f83e9d61b202d62d",
+  "product_id": "HIV123",
+  "product_name": "HIV Confidex Kit",
+  "source_original": "/home/code200/Confidex_GUI/captures/69d0e493f83e9d61b202d62d/20260530_161025/original.png",
+  "result": "Negative",
+  "original_result": "Negative",
+  "review_status": "none",
+  "review_required": false,
+  "annotation_policy": "yolo_class_labels_only",
+  "analysis": {
+    "ok": true,
+    "reason": "VALID_NEGATIVE_COMBINATION_CONTAINED",
+    "model": "backend/ipModel/my_model.pt",
+    "result": "Negative",
+    "detections_count": 3,
+    "detections": [
+      {
+        "label": "1N",
+        "label_normalized": "1N",
+        "class_key": "1N",
+        "class_id": 0,
+        "confidence": 0.7285964488983154,
+        "box_xyxy": [
+          324.78,
+          350.76,
+          350.47,
+          444.07
+        ]
+      },
+      {
+        "label": "2N",
+        "label_normalized": "2N",
+        "class_key": "2N",
+        "class_id": 2,
+        "confidence": 0.8100161552429199,
+        "box_xyxy": [
+          354.45,
+          350.76,
+          384.94,
+          444.69
+        ]
+      },
+      {
+        "label": "CV",
+        "label_normalized": "CV",
+        "class_key": "CV",
+        "class_id": 4,
+        "confidence": 0.7748680114746094,
+        "box_xyxy": [
+          387.36,
+          353.19,
+          413.44,
+          444.32
+        ]
+      }
+    ],
+    "all_detections_count": 3,
+    "all_detections": [
+      {
+        "label": "2N",
+        "label_normalized": "2N",
+        "class_key": "2N",
+        "class_id": 2,
+        "confidence": 0.8100161552429199,
+        "box_xyxy": [
+          354.45,
+          350.76,
+          384.94,
+          444.69
+        ]
+      },
+      {
+        "label": "CV",
+        "label_normalized": "CV",
+        "class_key": "CV",
+        "class_id": 4,
+        "confidence": 0.7748680114746094,
+        "box_xyxy": [
+          387.36,
+          353.19,
+          413.44,
+          444.32
+        ]
+      },
+      {
+        "label": "1N",
+        "label_normalized": "1N",
+        "class_key": "1N",
+        "class_id": 0,
+        "confidence": 0.7285964488983154,
+        "box_xyxy": [
+          324.78,
+          350.76,
+          350.47,
+          444.07
+        ]
+      }
+    ],
+    "active_filter": {
+      "family": "hiv",
+      "allowed_family_classes": [
+        "1N",
+        "1P",
+        "2N",
+        "2P",
+        "CV"
+      ],
+      "family_conf_threshold": 0.4,
+      "active_kit_policy": "bottom",
+      "clusters": [
+        {
+          "index": 0,
+          "median_y": 397.73,
+          "count": 3,
+          "classes": [
+            "1N",
+            "2N",
+            "CV"
+          ],
+          "selected": true
+        }
+      ],
+      "selected_cluster": {
+        "median_y": 397.73,
+        "count": 3,
+        "classes": [
+          "1N",
+          "2N",
+          "CV"
+        ]
+      },
+      "ignored_detections": [],
+      "filter_reason": "ACTIVE_KIT_FILTER_APPLIED"
+    },
+    "detected_classes": [
+      "1N",
+      "2N",
+      "CV"
+    ],
+    "relevant_detected_classes": [
+      "1N",
+      "2N",
+      "CV"
+    ],
+    "matched_rule": "CV+1N+2N",
+    "invalid_reason": "",
+    "conf_threshold": 0.4,
+    "predict_conf_threshold": 0.25,
+    "global_conf_threshold": 0.25,
+    "expected_family": "hiv",
+    "imgsz": 640,
+    "device": "cpu",
+    "product_id": "HIV123",
+    "product_name": "HIV Confidex Kit"
+  },
+  "detections": [
+    {
+      "label": "1N",
+      "label_normalized": "1N",
+      "class_key": "1N",
+      "class_id": 0,
+      "confidence": 0.7285964488983154,
+      "box_xyxy": [
+        324.78,
+        350.76,
+        350.47,
+        444.07
+      ]
+    },
+    {
+      "label": "2N",
+      "label_normalized": "2N",
+      "class_key": "2N",
+      "class_id": 2,
+      "confidence": 0.8100161552429199,
+      "box_xyxy": [
+        354.45,
+        350.76,
+        384.94,
+        444.69
+      ]
+    },
+    {
+      "label": "CV",
+      "label_normalized": "CV",
+      "class_key": "CV",
+      "class_id": 4,
+      "confidence": 0.7748680114746094,
+      "box_xyxy": [
+        387.36,
+        353.19,
+        413.44,
+        444.32
+      ]
+    }
+  ],
+  "recovery_image_policy": "original_keyword_only_no_raw",
+  "recovery_range_start": "2026-05-01T00:00:00+00:00",
+  "recovery_range_end": "2026-07-01T00:00:00+00:00"
+}

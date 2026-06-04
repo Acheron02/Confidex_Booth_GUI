@@ -17,6 +17,34 @@ def reload_env():
 reload_env()
 
 
+class LocalJsonResponse:
+    """Small requests.Response-compatible wrapper for local/offline responses.
+
+    QRLoginPage and other callers expect:
+      - .ok
+      - .status_code
+      - .headers
+      - .text
+      - .json()
+    """
+
+    def __init__(self, data: dict, status_code: int = 200):
+        self._data = data or {}
+        self.status_code = int(status_code)
+        self.ok = 200 <= self.status_code < 300
+        self.headers = {"content-type": "application/json"}
+
+        try:
+            import json
+
+            self.text = json.dumps(self._data, ensure_ascii=False, default=str)
+        except Exception:
+            self.text = str(self._data)
+
+    def json(self):
+        return self._data
+
+
 def _base_url() -> str:
     reload_env()
     base = (
@@ -108,14 +136,56 @@ def verify_login_qr(qr_code: str):
     payload = {
         "qrCode": str(qr_code).strip() if qr_code else ""
     }
-    return post_json("/api/qr-tokens/verify", payload)
+
+    try:
+        res = post_json("/api/qr-tokens/verify", payload, timeout=7)
+
+        # Do not offline-fallback invalid/expired/rejected QR codes.
+        # If the website clearly says 400/401/403/404, respect that response.
+        # Offline fallback is only for server/network availability failures.
+        if res.ok or getattr(res, "status_code", 0) in {400, 401, 403, 404}:
+            return res
+
+        print(
+            f"[API] Online QR verify returned {res.status_code}; trying offline cache.",
+            flush=True,
+        )
+
+    except Exception as exc:
+        print(f"[API] Online QR verify unavailable; trying offline cache: {exc}", flush=True)
+
+    try:
+        from backend.offline_identity_cache import verify_offline_login_qr
+
+        offline = verify_offline_login_qr(qr_code)
+
+        return LocalJsonResponse(
+            offline.get("data") or {},
+            status_code=int(offline.get("status_code") or 500),
+        )
+
+    except Exception as offline_exc:
+        return LocalJsonResponse(
+            {
+                "error": f"Online and offline QR verification failed: {offline_exc}",
+                "offline": True,
+            },
+            status_code=503,
+        )
 
 
 def validate_discount_token(user_id: str, token: str):
+    clean_user_id = str(user_id).strip() if user_id else ""
+    clean_token = str(token).strip() if token else ""
+
     payload = {
-        "userId": str(user_id).strip() if user_id else "",
-        "token": str(token).strip() if token else "",
+        "userId": clean_user_id,
+        "user_id": clean_user_id,
+        "token": clean_token,
+        "qrCode": clean_token,
+        "qr_code": clean_token,
     }
+
     return post_json("/api/qr-tokens/validate", payload)
 
 
@@ -127,15 +197,59 @@ def store_qr_token(
     receipt_transaction_id: str | None = None,
     expires_at: str | None = None,
 ):
+    clean_user_id = str(user_id).strip() if user_id else ""
+    clean_token = str(token).strip() if token else ""
+    clean_transaction_id = str(receipt_transaction_id or "").strip()
+    clean_expires_at = str(expires_at or "").strip()
+    clean_source = str(source or "booth_printed_coupon").strip()
+
+    try:
+        clean_discount_percent = float(discount_percent or 0)
+    except Exception:
+        clean_discount_percent = 10.0
+
     payload = {
-        "userId": str(user_id).strip() if user_id else "",
-        "token": str(token).strip() if token else "",
-        "discountPercent": float(discount_percent or 0),
-        "source": str(source or "booth_printed_coupon"),
-        "receiptTransactionId": str(receipt_transaction_id or "").strip(),
-        "expiresAt": str(expires_at or "").strip(),
+        # User identifiers.
+        "userId": clean_user_id,
+        "user_id": clean_user_id,
+
+        # Critical fix:
+        # Website returns {"error":"qrCode is required"} when this is missing.
+        "qrCode": clean_token,
+
+        # Compatibility aliases for older/newer endpoints.
+        "qr_code": clean_token,
+        "token": clean_token,
+        "qrValue": clean_token,
+        "qr_value": clean_token,
+
+        # Discount details.
+        "discountPercent": clean_discount_percent,
+        "discount_percent": clean_discount_percent,
+
+        # Source/reason details.
+        "source": clean_source,
+        "reason": clean_source,
+
+        # Transaction reference.
+        "receiptTransactionId": clean_transaction_id,
+        "receipt_transaction_id": clean_transaction_id,
+        "transactionId": clean_transaction_id,
+        "transaction_id": clean_transaction_id,
+
+        # Expiration.
+        "expiresAt": clean_expires_at,
+        "expires_at": clean_expires_at,
     }
-    return post_json("/api/qr-tokens", payload)
+
+    print("[API] store_qr_token payload:", repr(payload), flush=True)
+
+    res = post_json("/api/qr-tokens", payload, timeout=15)
+
+    print("[API] store_qr_token status:", getattr(res, "status_code", None), flush=True)
+    print("[API] store_qr_token body:", getattr(res, "text", ""), flush=True)
+
+    return res
 
 
 def post_transaction(payload: dict):
@@ -175,11 +289,21 @@ def post_device_inventory(payload: dict):
     return post_json("/api/device/inventory", payload, timeout=15)
 
 
+def get_offline_login_bundle():
+    return get_json("/api/device/offline-login-bundle", timeout=20)
+
+
+def post_offline_login_attempts(payload: dict):
+    return post_json("/api/device/offline-login-attempts", payload, timeout=20)
+
+
 def _stringify_extra_value(value: Any) -> str:
     if value is None:
         return ""
+
     if isinstance(value, (str, int, float, bool)):
         return str(value)
+
     try:
         import json
 
@@ -307,6 +431,7 @@ def upload_session_images(
                 "status_code": res.status_code,
                 "text": res.text,
             }
+
         except Exception as e:
             results[image_path.name] = {
                 "image_type": image_type,

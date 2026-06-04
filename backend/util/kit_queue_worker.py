@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 from config_manager import config
-from backend.system_events import report_error, report_warning
+from backend.system_events import report_error, report_warning, clear_visible_events
 from backend.util import api_client
 from backend.util.capture_manager import save_capture_set
 from backend.util.dispenser_serial import (
@@ -19,6 +19,7 @@ from backend.util.dispenser_serial import (
     stop_all,
 )
 from backend.booth_activity import get_booth_activity, is_booth_safe_for_background_disposal
+from backend.sync_guard import get_sync_epoch_iso, legacy_backfill_allowed
 
 # =====================================================
 # YOLO / ULTRALYTICS MODEL
@@ -38,6 +39,26 @@ YOLO_MODEL_LOCK = threading.RLock()
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+
+def _clear_upload_pending_warning(reason: str = "upload_completed") -> None:
+    """Tell the GUI to close a stale visible upload warning.
+
+    Background upload warnings are intentionally shown when a result/image
+    upload fails. When the retry later succeeds, the GUI needs a matching clear
+    event; otherwise the warning can remain on screen even though the problem is
+    already resolved.
+    """
+    try:
+        clear_visible_events(
+            source="kit_queue",
+            title="Upload Issue Resolved",
+            message="The pending result/image upload has completed successfully.",
+            details={"reason": reason},
+        )
+    except Exception as exc:
+        print(f"[KIT QUEUE] Failed to clear upload warning: {exc}", flush=True)
 
 DB_PATH = DATA_DIR / "kit_queue.sqlite3"
 
@@ -234,10 +255,55 @@ def init_queue_db():
                 """
             )
 
+            quarantine_legacy_queue_rows(conn)
+
             conn.commit()
 
         finally:
             conn.close()
+
+
+def quarantine_legacy_queue_rows(conn) -> int:
+    """Prevent old Raspberry Pi kit_queue rows from uploading into a new DB.
+
+    The queue database is persistent. If an old SD card contains rows from
+    March/April/previous months with upload_done=0, the normal worker will
+    treat them as pending and upload them again. This marks rows older than the
+    current sync epoch as historical archive data.
+    """
+    if legacy_backfill_allowed():
+        return 0
+
+    epoch = get_sync_epoch_iso()
+
+    try:
+        cur = conn.execute(
+            """
+            UPDATE kit_queue
+            SET status = 'legacy_skipped',
+                upload_done = 1,
+                dispose_done = 1,
+                upload_retry_at = '',
+                dispose_retry_at = '',
+                disposal_deferred_at = '',
+                last_error = 'Historical local queue row intentionally skipped to prevent bulk upload into the current website DB.',
+                updated_at = ?
+            WHERE COALESCE(created_at, inserted_at, updated_at, '') < ?
+              AND status NOT IN ('completed', 'legacy_skipped')
+            """,
+            (epoch, epoch),
+        )
+        skipped = int(cur.rowcount or 0)
+        if skipped > 0:
+            print(
+                f"[KIT QUEUE] Skipped {skipped} legacy queue row(s) older than sync epoch {epoch}; "
+                "not uploading historical Raspberry Pi backlog.",
+                flush=True,
+            )
+        return skipped
+    except Exception as exc:
+        print(f"[KIT QUEUE] Failed to quarantine legacy queue rows: {exc}", flush=True)
+        return 0
 
 
 def row_to_dict(row):
@@ -1548,7 +1614,7 @@ def get_next_completable_job():
                 FROM kit_queue
                 WHERE COALESCE(upload_done, 0) = 1
                   AND COALESCE(dispose_done, 0) = 1
-                  AND status != 'completed'
+                  AND status NOT IN ('completed', 'legacy_skipped')
                 ORDER BY updated_at ASC
                 LIMIT 1
                 """
@@ -1659,6 +1725,7 @@ class KitQueueWorker:
 
     def start(self):
         init_queue_db()
+        self.stop_event.clear()
 
         if not self.camera_thread or not self.camera_thread.is_alive():
             self.camera_thread = threading.Thread(
@@ -1678,9 +1745,35 @@ class KitQueueWorker:
 
         print("[KIT QUEUE] Background camera + worker started", flush=True)
 
-    def stop(self):
+    def stop(self, join=True, timeout=3.0):
+        """Stop camera/worker threads and release V4L2 cleanly.
+
+        Direct Tk destruction while the camera thread is still reading from
+        OpenCV/V4L2 can cause fatal shutdown errors on Raspberry Pi such as:
+          cv::Exception: Can't fetch data from terminated TLS container
+
+        This method is safe to call repeatedly.
+        """
         self.stop_event.set()
+        publish_queue_state("stopping", "Stopping queue camera and worker...")
+
+        # Releasing the camera can unblock cap.read() on shutdown.
         self.release_camera()
+
+        if join:
+            current = threading.current_thread()
+
+            for thread_obj in (self.camera_thread, self.worker_thread):
+                if thread_obj is None or thread_obj is current:
+                    continue
+
+                try:
+                    if thread_obj.is_alive():
+                        thread_obj.join(timeout=max(0.1, float(timeout)))
+                except Exception as e:
+                    print(f"[KIT QUEUE] Worker thread join failed: {e}", flush=True)
+
+        publish_queue_state("stopped", "Queue camera and worker stopped.")
 
     # ------------------------------------------------------------------
     # Camera ownership
@@ -1743,12 +1836,14 @@ class KitQueueWorker:
         with self.camera_lock:
             cap = self.cap
             self.cap = None
+            self.current_frame = None
+            self.current_frame_time = 0.0
 
         if cap is not None:
             try:
                 cap.release()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[KIT QUEUE] Camera release warning: {e}", flush=True)
 
     def camera_loop(self):
         while not self.stop_event.is_set():
@@ -1783,6 +1878,9 @@ class KitQueueWorker:
                 time.sleep(max(0.01, self.get_preview_interval_ms() / 1000.0))
 
             except Exception as e:
+                if self.stop_event.is_set():
+                    break
+
                 self.camera_error = str(e)
                 publish_queue_state("camera_error", str(e))
                 print(f"[KIT QUEUE] Camera loop error: {e}", flush=True)
@@ -1797,6 +1895,10 @@ class KitQueueWorker:
                 time.sleep(
                     float(config.get("kit_queue", "camera_retry_seconds", default=3))
                 )
+
+        self.release_camera()
+        publish_queue_state("stopped", "Queue camera stopped.")
+        print("[KIT QUEUE] Camera loop stopped", flush=True)
 
     def snapshot_frame(self):
         max_age = float(
@@ -2113,6 +2215,7 @@ class KitQueueWorker:
             upload_ok = self.upload_result_and_images(latest)
 
             if upload_ok:
+                _clear_upload_pending_warning("initial_upload_success")
                 mark_job(
                     job_id,
                     "dispose_pending",
@@ -2320,6 +2423,7 @@ class KitQueueWorker:
         ok = self.upload_result_and_images(job)
 
         if ok:
+            _clear_upload_pending_warning("retry_upload_success")
             latest = get_job(job_id) or job
             next_status = "completed" if int(latest.get("dispose_done") or 0) == 1 else "dispose_pending"
             mark_job(
@@ -2410,16 +2514,28 @@ class KitQueueWorker:
                 )
                 return False
 
+            # IMPORTANT:
+            # Do not send result-like fields during image upload.
+            #
+            # Older/stable behavior:
+            #   - /api/transaction creates the transaction/item as Pending.
+            #   - /api/results is the only endpoint that updates the final result.
+            #   - /api/device/image/upload only attaches image files.
+            #
+            # The previous Raspi update sent fields such as:
+            #   result, final_result, original_result, review_status, review_notes
+            # as multipart form data during image upload. Some website notification
+            # code can treat those multipart fields as public notification text,
+            # causing debug reasons such as NO_OBJECT_DETECTED / "No object detected"
+            # to appear while the transaction is still Pending.
+            #
+            # Keep detector reasons inside metadata sent to /api/results only.
+            # Image upload receives only display/image metadata that cannot override
+            # the public Pending/Positive/Negative/Invalid status.
             image_extra_data = {
-                "result": result_text,
-                "final_result": result_text,
-                "original_result": result_text,
-                "review_status": "under_review" if result_text == "Invalid" else "none",
-                "review_notes": (
-                    metadata.get("analysis", {}).get("reason")
-                    if isinstance(metadata.get("analysis"), dict)
-                    else ""
-                ) or ("Automatically submitted for admin review." if result_text == "Invalid" else ""),
+                "annotation_policy": "yolo_class_labels_only",
+                "review_image": "original.png",
+                "image_upload_context": "capture_attachment_only",
             }
 
             try:
@@ -2466,6 +2582,7 @@ class KitQueueWorker:
                         )
                         return False
 
+            _clear_upload_pending_warning("upload_result_and_images_success")
             return True
 
         except Exception as e:
@@ -2490,11 +2607,11 @@ def start_kit_queue_worker():
     return _worker_instance
 
 
-def stop_kit_queue_worker():
+def stop_kit_queue_worker(join=True, timeout=3.0):
     global _worker_instance
 
     if _worker_instance is not None:
-        _worker_instance.stop()
+        _worker_instance.stop(join=join, timeout=timeout)
 
 
 def get_kit_queue_worker():

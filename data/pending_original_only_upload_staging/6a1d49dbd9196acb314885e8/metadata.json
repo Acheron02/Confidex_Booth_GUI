@@ -1,0 +1,85 @@
+{
+  "recovered_pending_inference": true,
+  "recovered_at": "2026-06-02T03:31:53.637379+00:00",
+  "transaction_id": "6a1d49dbd9196acb314885e8",
+  "user_id": "69b4259c191db5be838a8d9f",
+  "product_id": "HIV123",
+  "product_name": "HIV Confidex Kit",
+  "source_original": "/home/code200/Confidex_GUI/captures/69b4259c191db5be838a8d9f/20260601_165731/original.png",
+  "result": "Invalid",
+  "original_result": "Invalid",
+  "review_status": "under_review",
+  "review_required": true,
+  "annotation_policy": "yolo_class_labels_only",
+  "analysis": {
+    "ok": true,
+    "reason": "NO_OBJECT_DETECTED",
+    "model": "backend/ipModel/my_model.pt",
+    "result": "Invalid",
+    "detections_count": 0,
+    "detections": [],
+    "all_detections_count": 1,
+    "all_detections": [
+      {
+        "label": "1N",
+        "label_normalized": "1N",
+        "class_key": "1N",
+        "class_id": 0,
+        "confidence": 0.29758724570274353,
+        "box_xyxy": [
+          413.95,
+          365.43,
+          443.21,
+          463.07
+        ]
+      }
+    ],
+    "active_filter": {
+      "family": "hiv",
+      "allowed_family_classes": [
+        "1N",
+        "1P",
+        "2N",
+        "2P",
+        "CV"
+      ],
+      "family_conf_threshold": 0.4,
+      "active_kit_policy": "bottom",
+      "clusters": [],
+      "ignored_detections": [
+        {
+          "label": "1N",
+          "label_normalized": "1N",
+          "class_key": "1N",
+          "class_id": 0,
+          "confidence": 0.29758724570274353,
+          "box_xyxy": [
+            413.95,
+            365.43,
+            443.21,
+            463.07
+          ],
+          "ignore_reason": "LOW_CONFIDENCE_FOR_EXPECTED_KIT_FAMILY",
+          "required_confidence": 0.4
+        }
+      ],
+      "filter_reason": "NO_RELEVANT_FAMILY_DETECTIONS"
+    },
+    "detected_classes": [],
+    "relevant_detected_classes": [],
+    "matched_rule": "",
+    "invalid_reason": "No object/class was detected by the model.",
+    "conf_threshold": 0.4,
+    "predict_conf_threshold": 0.25,
+    "global_conf_threshold": 0.25,
+    "expected_family": "hiv",
+    "imgsz": 640,
+    "device": "cpu",
+    "product_id": "HIV123",
+    "product_name": "HIV Confidex Kit"
+  },
+  "detections": [],
+  "recovery_image_policy": "original_keyword_only_no_raw",
+  "recovery_range_start": "2026-05-01T00:00:00+00:00",
+  "recovery_range_end": "2026-07-01T00:00:00+00:00"
+}

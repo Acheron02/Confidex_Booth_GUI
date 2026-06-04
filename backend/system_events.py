@@ -142,6 +142,29 @@ def report_info(source: str, title: str, message: str, details: Any = None, visi
     return report_event("info", source, title, message, details, visible)
 
 
+def clear_visible_events(
+    source: str = "system",
+    title: str = "Issue Resolved",
+    message: str = "",
+    details: Any = None,
+):
+    """Queue a visible clear/recovery event for the kiosk GUI.
+
+    Normal error/warning events are latched by the GUI so operators can see
+    them. Recovery events use severity='clear' and tell main.py to close the
+    currently displayed dialog for the same source. The event is also written
+    to the normal booth event log/database for traceability.
+    """
+    return report_event(
+        "clear",
+        source,
+        title or "Issue Resolved",
+        message or "The issue has been resolved.",
+        details,
+        visible=True,
+    )
+
+
 def drain_visible_events(max_items: int = 10) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for _ in range(max(1, int(max_items or 1))):

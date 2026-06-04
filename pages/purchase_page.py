@@ -1457,6 +1457,16 @@ class PurchasePage(ctk.CTkFrame):
         if not self.selected_product or not self.user_data:
             return
 
+        if hasattr(self.controller, "has_unfinished_paid_flow") and self.controller.has_unfinished_paid_flow(self.user_data):
+            self.status_label.configure(
+                text="Unfinished paid transaction found. Resuming previous flow instead of starting a new purchase.",
+                text_color=ORANGE,
+            )
+            handler = getattr(self.controller, "handle_qr_login_success", None)
+            if callable(handler):
+                handler(self.user_data)
+            return
+
         latest = self._resolve_latest_selected_product()
 
         if latest is None or not latest.get("available", False):
@@ -1467,7 +1477,7 @@ class PurchasePage(ctk.CTkFrame):
             self.reload_products(force=True)
             self.status_label.configure(
                 text=config.get("purchase_page", "out_of_stock_text", default="OUT OF STOCK"),
-                text_color=ERROR
+                text_color=ERROR,
             )
             return
 
@@ -1480,13 +1490,20 @@ class PurchasePage(ctk.CTkFrame):
         self.selected_product = latest
         self.update_order_summary()
 
+        if self.listener:
+            try:
+                self.listener.stop()
+            except Exception:
+                pass
+            self.listener = None
+
         payload_product = self.selected_product.copy()
 
         self.controller.show_loading_then(
             config.get(
                 "purchase_page",
                 "payment_loading_text",
-                default="Preparing payment options"
+                default="Preparing payment options",
             ),
             "PaymentMethodPage",
             delay=1000,
@@ -1495,8 +1512,17 @@ class PurchasePage(ctk.CTkFrame):
             selected_product=payload_product,
             selected_item=payload_product,
             discount=self.discount or 0,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
         )
+    def deactivate_page(self):
+        if self.listener:
+            try:
+                self.listener.stop()
+            except Exception:
+                pass
+            self.listener = None
+        self.qr_buffer = ""
+        self.validation_in_progress = False
 
     def reset_fields(self, **kwargs):
         if self.listener:

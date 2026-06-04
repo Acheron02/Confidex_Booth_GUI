@@ -10,6 +10,14 @@ from backend.payment_recovery import mark_payment_completed
 from backend.system_events import report_error, report_warning
 
 try:
+    from backend.flow_state import clear_active_flow
+except Exception as flow_import_error:
+    clear_active_flow = None
+    _FLOW_STATE_IMPORT_ERROR = flow_import_error
+else:
+    _FLOW_STATE_IMPORT_ERROR = None
+
+try:
     from backend.util.kit_queue_worker import (
         enqueue_kit_job,
         get_latest_queue_frame,
@@ -924,6 +932,56 @@ class KitInsertionPage(ctk.CTkFrame):
         if not self._queue_retry_job:
             self._schedule_queue_retry((event or {}).get("message") or "Recovering kit insertion step.")
 
+    def _finish_paid_booth_flow_after_queue(self, job=None, reason="kit_queued"):
+        """Clear only this user's durable paid-flow guard after the used kit is queued.
+
+        Once the kit insertion is confirmed and a queue job exists, the user-facing
+        paid booth flow is already finished. Capture, upload, analysis, and disposal
+        are background queue responsibilities.
+
+        This must clear only the current user's transaction. It must not delete
+        another user's unfinished paid flow.
+        """
+        transaction_id = ""
+
+        try:
+            if isinstance(job, dict):
+                transaction_id = str(job.get("transaction_id") or "").strip()
+        except Exception:
+            transaction_id = ""
+
+        if not transaction_id:
+            transaction_id = str(self._get_transaction_id() or "").strip()
+
+        if clear_active_flow is not None:
+            try:
+                clear_active_flow(
+                    user_data=self.user_data,
+                    transaction_id=transaction_id,
+                )
+                print(
+                    f"[KIT] Cleared this user's active flow after kit insertion was queued. "
+                    f"tx={transaction_id} reason={reason}",
+                    flush=True,
+                )
+            except Exception as e:
+                print(f"[KIT] Failed to clear active flow after queueing kit: {e}", flush=True)
+        else:
+            print(
+                f"[KIT] flow_state.clear_active_flow unavailable; import_error={_FLOW_STATE_IMPORT_ERROR}",
+                flush=True,
+            )
+
+        # Also clear only the in-memory controller state for the currently logged-in user.
+        # Durable flows for other users remain in active_flows.
+        try:
+            self.controller.current_user = None
+            self.controller.selected_product = None
+            self.controller.current_transaction_id = None
+            self.controller.active_flow_kwargs = {}
+        except Exception:
+            pass
+
     def confirm_insertion(self):
         try:
             if self._busy:
@@ -956,6 +1014,10 @@ class KitInsertionPage(ctk.CTkFrame):
                         result_text=f"Your result will appear on the website after about {self._queue_delay_text()}.",
                         confirm_color=SUCCESS,
                         result_color=SUCCESS,
+                    )
+                    self._finish_paid_booth_flow_after_queue(
+                        existing_job,
+                        reason="existing_queue_job_reused",
                     )
                     self.after(
                         int(config.get("kit_insertion_page", "logout_delay_ms", default=3000)),
@@ -1021,6 +1083,11 @@ class KitInsertionPage(ctk.CTkFrame):
             )
 
             print(f"[KIT] Queued kit job: {job}", flush=True)
+
+            self._finish_paid_booth_flow_after_queue(
+                job,
+                reason="new_queue_job_created",
+            )
 
             if self.payment_session_id:
                 try:
@@ -1127,6 +1194,13 @@ class KitInsertionPage(ctk.CTkFrame):
     def logout_user(self):
         self.stop_camera()
         self._cancel_queue_retry()
+
+        # Fallback clear: this is safe even if confirm_insertion already cleared it.
+        if self._queued_job:
+            self._finish_paid_booth_flow_after_queue(
+                self._queued_job,
+                reason="kit_insertion_logout",
+            )
 
         self.user_data = {}
         self.selected_product = None

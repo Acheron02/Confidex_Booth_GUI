@@ -3,3 +3,9 @@ captures/
 logs/
 venv
 backend/ipModel/
+/recovery_reports
+/scripts
+/tools
+confidex_local_backup_may_june_before_recovery.tar.gz
+ngrok-v3-stable-linux-arm64.tgz
+README_SETUP.md

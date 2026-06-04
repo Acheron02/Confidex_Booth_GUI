@@ -23,7 +23,10 @@
     "login_failed_status": "Login failed",
     "login_failed_result": "Login failed",
     "network_error_status": "Network error",
-    "network_error_prefix": "Request failed:"
+    "network_error_prefix": "Request failed:",
+    "auto_return_seconds": 45,
+    "timeout_status_text": "No login QR was scanned within 45 seconds.",
+    "timeout_returning_text": "Returning to welcome page..."
   },
   "purchase_page": {
     "title": "SELECT A PRODUCT",
@@ -336,7 +339,7 @@
       "product_id": "HIV123",
       "name": "HIV Confidex Kit",
       "type": "HIV Test",
-      "price": 1,
+      "price": 50,
       "enabled": true,
       "dispense_slot": "KIT1"
     },
@@ -344,7 +347,7 @@
       "product_id": "DENGUE123",
       "name": "Dengue Confidex Kit",
       "type": "Dengue Test",
-      "price": 1,
+      "price": 50,
       "enabled": true,
       "dispense_slot": "KIT2"
     }

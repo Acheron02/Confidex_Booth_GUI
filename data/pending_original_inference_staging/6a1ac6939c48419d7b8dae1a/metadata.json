@@ -1,0 +1,161 @@
+{
+  "recovered_pending_inference": true,
+  "recovered_at": "2026-06-02T03:52:36.223326+00:00",
+  "transaction_id": "6a1ac6939c48419d7b8dae1a",
+  "user_id": "69d0e493f83e9d61b202d62d",
+  "product_id": "HIV123",
+  "product_name": "HIV Confidex Kit",
+  "source_original": "/home/code200/Confidex_GUI/captures/69d0e493f83e9d61b202d62d/20260530_185336/original.png",
+  "result": "Invalid",
+  "original_result": "Invalid",
+  "review_status": "under_review",
+  "review_required": true,
+  "annotation_policy": "yolo_class_labels_only",
+  "analysis": {
+    "ok": true,
+    "reason": "NO_CV_DETECTED",
+    "model": "backend/ipModel/my_model.pt",
+    "result": "Invalid",
+    "detections_count": 2,
+    "detections": [
+      {
+        "label": "2N",
+        "label_normalized": "2N",
+        "class_key": "2N",
+        "class_id": 2,
+        "confidence": 0.47289592027664185,
+        "box_xyxy": [
+          448.38,
+          345.92,
+          476.83,
+          443.39
+        ]
+      },
+      {
+        "label": "1N",
+        "label_normalized": "1N",
+        "class_key": "1N",
+        "class_id": 0,
+        "confidence": 0.6199185848236084,
+        "box_xyxy": [
+          417.88,
+          347.65,
+          445.04,
+          442.27
+        ]
+      }
+    ],
+    "all_detections_count": 2,
+    "all_detections": [
+      {
+        "label": "1N",
+        "label_normalized": "1N",
+        "class_key": "1N",
+        "class_id": 0,
+        "confidence": 0.6199185848236084,
+        "box_xyxy": [
+          417.88,
+          347.65,
+          445.04,
+          442.27
+        ]
+      },
+      {
+        "label": "2N",
+        "label_normalized": "2N",
+        "class_key": "2N",
+        "class_id": 2,
+        "confidence": 0.47289592027664185,
+        "box_xyxy": [
+          448.38,
+          345.92,
+          476.83,
+          443.39
+        ]
+      }
+    ],
+    "active_filter": {
+      "family": "hiv",
+      "allowed_family_classes": [
+        "1N",
+        "1P",
+        "2N",
+        "2P",
+        "CV"
+      ],
+      "family_conf_threshold": 0.4,
+      "active_kit_policy": "bottom",
+      "clusters": [
+        {
+          "index": 0,
+          "median_y": 394.81,
+          "count": 2,
+          "classes": [
+            "1N",
+            "2N"
+          ],
+          "selected": true
+        }
+      ],
+      "selected_cluster": {
+        "median_y": 394.81,
+        "count": 2,
+        "classes": [
+          "1N",
+          "2N"
+        ]
+      },
+      "ignored_detections": [],
+      "filter_reason": "ACTIVE_KIT_FILTER_APPLIED"
+    },
+    "detected_classes": [
+      "1N",
+      "2N"
+    ],
+    "relevant_detected_classes": [
+      "1N",
+      "2N"
+    ],
+    "matched_rule": "",
+    "invalid_reason": "CV was not detected.",
+    "conf_threshold": 0.4,
+    "predict_conf_threshold": 0.25,
+    "global_conf_threshold": 0.25,
+    "expected_family": "hiv",
+    "imgsz": 640,
+    "device": "cpu",
+    "product_id": "HIV123",
+    "product_name": "HIV Confidex Kit"
+  },
+  "detections": [
+    {
+      "label": "2N",
+      "label_normalized": "2N",
+      "class_key": "2N",
+      "class_id": 2,
+      "confidence": 0.47289592027664185,
+      "box_xyxy": [
+        448.38,
+        345.92,
+        476.83,
+        443.39
+      ]
+    },
+    {
+      "label": "1N",
+      "label_normalized": "1N",
+      "class_key": "1N",
+      "class_id": 0,
+      "confidence": 0.6199185848236084,
+      "box_xyxy": [
+        417.88,
+        347.65,
+        445.04,
+        442.27
+      ]
+    }
+  ],
+  "recovery_image_policy": "original_keyword_only_no_raw",
+  "recovery_range_start": "2026-05-01T00:00:00+00:00",
+  "recovery_range_end": "2026-07-01T00:00:00+00:00"
+}

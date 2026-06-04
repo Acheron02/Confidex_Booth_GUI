@@ -135,6 +135,7 @@ class ReceiptPage(ctk.CTkFrame):
         self.printing_in_progress = False
         self.print_error = None
         self.print_success = False
+        self.printed_placeholder_coupon = False
         self.redirect_scheduled = False
 
         self.sync_in_progress = False
@@ -584,6 +585,7 @@ class ReceiptPage(ctk.CTkFrame):
         self.printing_in_progress = False
         self.print_error = None
         self.print_success = False
+        self.printed_placeholder_coupon = False
         self.redirect_scheduled = False
         self.sync_in_progress = False
         self.sync_result = None
@@ -819,8 +821,10 @@ class ReceiptPage(ctk.CTkFrame):
                 "expires_at": self.discount_token_expires_at,
             }
 
-        self.coupon_print_status = "pending" if self.discount_token else "token_missing"
-        self.coupon_print_error = None if self.discount_token else "Discount token missing."
+        self.coupon_print_status = "pending" if self.discount_token else "placeholder_pending"
+        self.coupon_print_error = None if self.discount_token else (
+            "Discount token missing. Placeholder coupon will be printed."
+        )
 
         self.receipt_data = {
             "transaction_id": self.transaction_id,
@@ -1112,7 +1116,6 @@ class ReceiptPage(ctk.CTkFrame):
             self.discount_token = generate_token(user_id)
             self.discount_token_expires_at = expires_at.isoformat()
 
-            # A failed coupon upload should not stop dispensing.
             store_res = api_client.store_qr_token(
                 user_id=user_id,
                 token=self.discount_token,
@@ -1147,6 +1150,7 @@ class ReceiptPage(ctk.CTkFrame):
         self.printing_in_progress = True
         self.print_success = False
         self.print_error = None
+        self.printed_placeholder_coupon = not bool(self.discount_token)
 
         threading.Thread(
             target=self._print_receipt,
@@ -1221,6 +1225,8 @@ class ReceiptPage(ctk.CTkFrame):
             if not self._is_current_run(run_id):
                 return
 
+            self.printed_placeholder_coupon = not bool(self.discount_token)
+
             self._write_print_status_to_receipt(
                 status="initializing",
                 error_text=None,
@@ -1238,8 +1244,8 @@ class ReceiptPage(ctk.CTkFrame):
                 return
 
             self._write_print_status_to_receipt(
-                status="printing",
-                error_text=None,
+                status="printing_placeholder" if self.printed_placeholder_coupon else "printing",
+                error_text=None if self.discount_token else "Printing placeholder coupon.",
                 attempted_at=attempted_at,
             )
 
@@ -1248,11 +1254,10 @@ class ReceiptPage(ctk.CTkFrame):
                 self.print_error = "Printer function unavailable."
                 return
 
-            if not self.discount_token:
-                self.print_success = False
-                self.print_error = "Discount token missing or failed to store online."
-                return
-
+            # Important:
+            # This must still run when discount_token is None.
+            # backend/printer.py should print the boxed placeholder message
+            # "request a qr code on the website" when token is missing.
             result = print_discount_qr(self.discount_token)
 
             if not self._is_current_run(run_id):
@@ -1269,7 +1274,7 @@ class ReceiptPage(ctk.CTkFrame):
             if self._is_current_run(run_id):
                 self.print_success = False
                 self.print_error = str(e)
-            print(f"[RECEIPT] Failed to print QR coupon: {e}", flush=True)
+            print(f"[RECEIPT] Failed to print coupon: {e}", flush=True)
 
         finally:
             if self._is_current_run(run_id):
@@ -1303,6 +1308,7 @@ class ReceiptPage(ctk.CTkFrame):
             "completed_at": completed_at,
             "error": error_text,
             "printer_function_available": print_discount_qr is not None,
+            "printed_placeholder_coupon": bool(getattr(self, "printed_placeholder_coupon", False)),
         })
 
         self.receipt_data.setdefault("support", {})
@@ -1322,12 +1328,27 @@ class ReceiptPage(ctk.CTkFrame):
         completed_at = datetime.now().isoformat()
 
         if self.print_success:
-            self.coupon_print_status = "printed"
-            self.coupon_print_error = None
-            print("[RECEIPT] Coupon print complete. Redirecting to dispensing.", flush=True)
+            if getattr(self, "printed_placeholder_coupon", False):
+                self.coupon_print_status = "printed_placeholder"
+                self.coupon_print_error = (
+                    "Printed coupon with website QR request box because no valid QR token was available."
+                )
+                print(
+                    "[RECEIPT] Placeholder coupon printed. Redirecting to dispensing.",
+                    flush=True,
+                )
+            else:
+                self.coupon_print_status = "printed"
+                self.coupon_print_error = None
+                print(
+                    "[RECEIPT] Coupon QR print complete. Redirecting to dispensing.",
+                    flush=True,
+                )
         else:
             if print_discount_qr is None:
                 self.coupon_print_status = "printer_unavailable"
+            elif getattr(self, "printed_placeholder_coupon", False):
+                self.coupon_print_status = "placeholder_failed"
             elif not self.discount_token:
                 self.coupon_print_status = "token_missing"
             else:
@@ -1344,7 +1365,7 @@ class ReceiptPage(ctk.CTkFrame):
             self._show_coupon_print_error_notice(self.coupon_print_error)
 
         if self.receipt_data is not None:
-            if self.print_success and self.pending_coupon_payload:
+            if self.print_success and self.pending_coupon_payload and self.discount_token:
                 self.receipt_data["coupon"] = self.pending_coupon_payload
             else:
                 self.receipt_data.pop("coupon", None)

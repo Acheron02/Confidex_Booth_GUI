@@ -30,6 +30,10 @@ _KITS_HOMED_EVENT = threading.Event()
 _HOMING_IN_PROGRESS = False
 _HOMING_LOCK = threading.RLock()
 
+_RETURN_HOME_LOCK = threading.RLock()
+_RETURN_HOME_IN_PROGRESS = False
+_RETURN_HOME_KIT = ""
+
 _DISPOSAL_CANCEL_EVENT = threading.Event()
 
 
@@ -49,6 +53,26 @@ def clear_disposal_cancel_request():
 
 def is_disposal_cancel_requested():
     return _DISPOSAL_CANCEL_EVENT.is_set()
+
+
+def is_return_home_in_progress():
+    """Return True while a kit lane is being returned home.
+
+    The GUI uses this to avoid entering another Arduino-heavy page while
+    the empty lane is still homing in the background. The serial lock would
+    already serialize commands, but exposing this state lets the UI show a
+    friendly loading screen instead of appearing stuck.
+    """
+    with _RETURN_HOME_LOCK:
+        return bool(_RETURN_HOME_IN_PROGRESS)
+
+
+def get_return_home_status():
+    with _RETURN_HOME_LOCK:
+        return {
+            "in_progress": bool(_RETURN_HOME_IN_PROGRESS),
+            "kit": _RETURN_HOME_KIT,
+        }
 
 
 FINAL_PREFIXES = (
@@ -883,53 +907,65 @@ def reset_kit_slots(timeout=5):
 # =====================================================
 
 def return_kit_home(kit_code, timeout=RETURN_HOME_TIMEOUT_SECONDS):
+    global _RETURN_HOME_IN_PROGRESS, _RETURN_HOME_KIT
+
     kit_code = _clean(kit_code).upper()
 
     if kit_code not in {"KIT1", "KIT2"}:
         return _error_result(f"Invalid return-home kit code: {kit_code}", [])
 
-    command = f"RETURN_{kit_code}_HOME\n"
-    expected = f"KIT_RETURNED_HOME:{kit_code}"
+    with _RETURN_HOME_LOCK:
+        _RETURN_HOME_IN_PROGRESS = True
+        _RETURN_HOME_KIT = kit_code
 
-    replies = _send_command_and_collect(
-        command,
-        timeout=timeout,
-        wait_for_prefixes=(expected,),
-    )
+    try:
+        command = f"RETURN_{kit_code}_HOME\n"
+        expected = f"KIT_RETURNED_HOME:{kit_code}"
 
-    got_ok = False
-    final_line = None
-    error_line = None
-    busy = False
-
-    for line in replies:
-        upper = _upper(line)
-
-        if upper == "OK":
-            got_ok = True
-        elif upper == "BUSY":
-            busy = True
-        elif upper.startswith(expected):
-            final_line = line
-        elif _is_failure_line(upper):
-            error_line = line
-
-    if busy:
-        return _error_result(_translate_arduino_error("BUSY"), replies)
-
-    if error_line:
-        return _error_result(_translate_arduino_error(error_line), replies)
-
-    if final_line:
-        return _success_result(final_line, replies, returned_home=kit_code)
-
-    if got_ok:
-        return _error_result(
-            f"Arduino accepted RETURN_{kit_code}_HOME, but no {expected} confirmation was received.",
-            replies,
+        replies = _send_command_and_collect(
+            command,
+            timeout=timeout,
+            wait_for_prefixes=(expected,),
         )
 
-    return _error_result(f"No valid RETURN_{kit_code}_HOME response received.", replies)
+        got_ok = False
+        final_line = None
+        error_line = None
+        busy = False
+
+        for line in replies:
+            upper = _upper(line)
+
+            if upper == "OK":
+                got_ok = True
+            elif upper == "BUSY":
+                busy = True
+            elif upper.startswith(expected):
+                final_line = line
+            elif _is_failure_line(upper):
+                error_line = line
+
+        if busy:
+            return _error_result(_translate_arduino_error("BUSY"), replies)
+
+        if error_line:
+            return _error_result(_translate_arduino_error(error_line), replies)
+
+        if final_line:
+            return _success_result(final_line, replies, returned_home=kit_code)
+
+        if got_ok:
+            return _error_result(
+                f"Arduino accepted RETURN_{kit_code}_HOME, but no {expected} confirmation was received.",
+                replies,
+            )
+
+        return _error_result(f"No valid RETURN_{kit_code}_HOME response received.", replies)
+
+    finally:
+        with _RETURN_HOME_LOCK:
+            _RETURN_HOME_IN_PROGRESS = False
+            _RETURN_HOME_KIT = ""
 
 
 # =====================================================

@@ -37,19 +37,13 @@ WEBSITE = (
     or "https://irretraceably-chirographical-shayne.ngrok-free.dev"
 )
 
-# Best value in .env.local:
+# Recommended in .env.local:
 # THERMAL_PRINTER_PORT=/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
 PREFERRED_PRINTER_PORT = os.getenv("THERMAL_PRINTER_PORT", "").strip() or None
 
-# =========================
-# EM5820 / 5822-2007 tuning
-# =========================
 PRINTER_LINE_WIDTH = _env_int("PRINTER_LINE_WIDTH", 32, 24, 48)
 
 # ESC 7 n1 n2 n3
-# n1 = max heating dots
-# n2 = heating time
-# n3 = heating interval
 HEAT_DOTS = _env_int("PRINTER_HEAT_DOTS", 10, 1, 255)
 HEAT_TIME = _env_int("PRINTER_HEAT_TIME", 0xC8, 1, 255)
 HEAT_INTERVAL = _env_int("PRINTER_HEAT_INTERVAL", 0x02, 0, 255)
@@ -58,29 +52,24 @@ HEAT_INTERVAL = _env_int("PRINTER_HEAT_INTERVAL", 0x02, 0, 255)
 PRINT_DENSITY = _env_int("PRINTER_DENSITY", 15, 0, 15)
 PRINT_BREAK_TIME = _env_int("PRINTER_BREAK_TIME", 7, 0, 7)
 
-# QR tuning
-QR_MODULE_SIZE = _env_int(
-    "PRINTER_QR_MODULE_SIZE",
-    10,
-    4,
-    18
-)
+QR_MODULE_SIZE = _env_int("PRINTER_QR_MODULE_SIZE", 10, 4, 18)
 
 # ESC/POS QR error correction:
 # 48=L, 49=M, 50=Q, 51=H
 QR_EC_LEVEL = _env_int("PRINTER_QR_EC_LEVEL", 51, 48, 51)
-
 if QR_EC_LEVEL not in (48, 49, 50, 51):
     QR_EC_LEVEL = 51
 
-# This is the long blank space after the coupon.
-# Add this to .env.local if you want to tune without changing code:
-# PRINTER_TRAILING_BLANK_LINES=12
 TRAILING_BLANK_LINES = _env_int(
     "PRINTER_TRAILING_BLANK_LINES",
     80,
     0,
-    200
+    200,
+)
+
+PLACEHOLDER_QR_MESSAGE = (
+    os.getenv("PRINTER_PLACEHOLDER_QR_MESSAGE", "").strip()
+    or "request a qr code on the website"
 )
 
 
@@ -101,13 +90,6 @@ def _safe_text(value):
     return str(value)
 
 
-def _peso(value):
-    try:
-        return f"PHP {float(value):.2f}"
-    except Exception:
-        return f"PHP {_safe_text(value)}"
-
-
 def _write(ser, cmd: bytes, delay=0.08):
     ser.write(cmd)
     ser.flush()
@@ -115,13 +97,6 @@ def _write(ser, cmd: bytes, delay=0.08):
 
 
 def _feed(ser, lines=1, delay=0.08):
-    """
-    Feed blank paper safely.
-
-    Large feeds are split because some thermal printers
-    become unstable with a huge single write.
-    """
-
     lines = int(lines or 0)
 
     if lines <= 0:
@@ -132,13 +107,7 @@ def _feed(ser, lines=1, delay=0.08):
 
     while remaining > 0:
         chunk = min(chunk_size, remaining)
-
-        _write(
-            ser,
-            b"\n" * chunk,
-            delay
-        )
-
+        _write(ser, b"\n" * chunk, delay)
         remaining -= chunk
 
 
@@ -169,11 +138,6 @@ def _normal(ser):
 
 def _set_line_spacing_default(ser):
     _write(ser, b"\x1B\x32", 0.06)
-
-
-def _set_line_spacing(ser, n=30):
-    n = max(0, min(255, int(n)))
-    _write(ser, b"\x1B\x33" + bytes([n]), 0.06)
 
 
 def _looks_like_arduino(port_info):
@@ -336,10 +300,10 @@ def _open_printer_serial(com_port=None, baud=DEFAULT_BAUD):
 def _init_printer(ser):
     print("[PRINTER] Initializing printer with darker settings", flush=True)
 
-    # Reset printer
+    # Reset printer.
     _write(ser, b"\x1B\x40", 0.20)
 
-    # EM5820 stronger heating config
+    # EM5820 / 5822-2007 stronger heating config.
     _write(
         ser,
         b"\x1B\x37" + bytes([HEAT_DOTS, HEAT_TIME, HEAT_INTERVAL]),
@@ -418,38 +382,72 @@ def _print_separator(ser, char="-", count=PRINTER_LINE_WIDTH):
     )
 
 
+def _print_boxed_message(ser, message=PLACEHOLDER_QR_MESSAGE):
+    box_width = min(PRINTER_LINE_WIDTH, 32)
+    inner_width = box_width - 4
+
+    wrapped = textwrap.wrap(
+        _safe_text(message).strip() or "request a qr code on the website",
+        width=inner_width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+    if not wrapped:
+        wrapped = ["request a qr code on the website"]
+
+    _center(ser)
+    _feed(ser, 1, 0.08)
+
+    _bold(ser, True)
+
+    top_border = "+" + ("-" * (box_width - 2)) + "+"
+    empty_line = "|" + (" " * (box_width - 2)) + "|"
+
+    _write(ser, (top_border + "\n").encode("ascii", errors="ignore"), 0.08)
+
+    for _ in range(2):
+        _write(ser, (empty_line + "\n").encode("ascii", errors="ignore"), 0.08)
+
+    for line in wrapped:
+        line = line[:inner_width]
+        left_pad = max(0, (inner_width - len(line)) // 2)
+        right_pad = max(0, inner_width - len(line) - left_pad)
+        boxed_line = "| " + (" " * left_pad) + line + (" " * right_pad) + " |"
+        _write(ser, (boxed_line + "\n").encode("ascii", errors="ignore"), 0.08)
+
+    for _ in range(2):
+        _write(ser, (empty_line + "\n").encode("ascii", errors="ignore"), 0.08)
+
+    _write(ser, (top_border + "\n").encode("ascii", errors="ignore"), 0.08)
+
+    _bold(ser, False)
+    _feed(ser, 3, 0.10)
+
+
 def _print_qr(
     ser,
     data: str,
     module_size=QR_MODULE_SIZE,
-    ec_level=QR_EC_LEVEL
+    ec_level=QR_EC_LEVEL,
 ):
-    qr_data = _safe_text(data).encode(
+    qr_data = _safe_text(data).strip().encode(
         "ascii",
-        errors="ignore"
+        errors="ignore",
     )
 
     if not qr_data:
         raise ValueError("QR data empty")
 
-    module_size = max(
-        4,
-        min(
-            18,
-            int(module_size)
-        )
-    )
+    module_size = max(4, min(18, int(module_size)))
 
     ec_level = int(ec_level)
-
-    if ec_level not in (48,49,50,51):
+    if ec_level not in (48, 49, 50, 51):
         ec_level = 51
 
     print(
-        f"[PRINTER] Printing QR "
-        f"bytes={len(qr_data)} "
-        f"size={module_size}",
-        flush=True
+        f"[PRINTER] Printing QR bytes={len(qr_data)} size={module_size}",
+        flush=True,
     )
 
     _center(ser)
@@ -458,51 +456,45 @@ def _print_qr(
     _write(
         ser,
         b"\x1D\x28\x6B\x04\x00\x31\x41\x32\x00",
-        0.2
+        0.2,
     )
 
-    # Bigger QR
+    # Module size
     _write(
         ser,
-        b"\x1D\x28\x6B\x03\x00\x31\x43"
-        + bytes([module_size]),
-        0.2
+        b"\x1D\x28\x6B\x03\x00\x31\x43" + bytes([module_size]),
+        0.2,
     )
 
     # Error correction
     _write(
         ser,
-        b"\x1D\x28\x6B\x03\x00\x31\x45"
-        + bytes([ec_level]),
-        0.2
+        b"\x1D\x28\x6B\x03\x00\x31\x45" + bytes([ec_level]),
+        0.2,
     )
 
-    total_len = len(qr_data)+3
-
+    # Store QR data
+    total_len = len(qr_data) + 3
     pL = total_len & 0xFF
     pH = (total_len >> 8) & 0xFF
 
     _write(
         ser,
         b"\x1D\x28\x6B"
-        + bytes([pL,pH])
+        + bytes([pL, pH])
         + b"\x31\x50\x30"
         + qr_data,
-        0.35
+        0.35,
     )
 
+    # Print QR
     _write(
         ser,
         b"\x1D\x28\x6B\x03\x00\x31\x51\x30",
-        1.5
+        1.5,
     )
 
-    # Added space around QR
-    _feed(
-        ser,
-        4,
-        0.12
-    )
+    _feed(ser, 4, 0.12)
 
 
 def _finalize_print(ser):
@@ -510,41 +502,39 @@ def _finalize_print(ser):
     _left(ser)
 
     print(
-        f"[PRINTER] Feeding "
-        f"{TRAILING_BLANK_LINES} "
-        f"blank lines",
-        flush=True
+        f"[PRINTER] Feeding {TRAILING_BLANK_LINES} blank lines",
+        flush=True,
     )
 
     _set_line_spacing_default(ser)
-
-    # Huge paper tail
-    _feed(
-        ser,
-        TRAILING_BLANK_LINES,
-        0.12
-    )
-
+    _feed(ser, TRAILING_BLANK_LINES, 0.12)
     _set_line_spacing_default(ser)
 
     ser.flush()
-
     time.sleep(2.0)
 
 
-def print_discount_qr(token: str, com_port=None, baud=DEFAULT_BAUD):
+def print_discount_qr(token: str = None, com_port=None, baud=DEFAULT_BAUD):
     """
-    Prints only the discount QR coupon.
-    No purchase details are printed.
+    Prints the discount coupon.
+
+    If token exists:
+        Prints the real QR code.
+
+    If token is missing:
+        Still prints the coupon, but replaces the QR area with a box saying:
+        "request a qr code on the website"
     """
 
     ser = None
+    token_text = _safe_text(token).strip()
+    has_qr_token = bool(token_text)
 
     try:
         ser = _open_printer_serial(com_port=com_port, baud=baud)
         _init_printer(ser)
 
-        print("[PRINTER] Printing QR-only coupon header", flush=True)
+        print("[PRINTER] Printing discount coupon header", flush=True)
 
         _center(ser)
         _big(ser, True)
@@ -575,43 +565,85 @@ def print_discount_qr(token: str, com_port=None, baud=DEFAULT_BAUD):
         )
 
         _normal(ser)
-        _print_wrapped_line(
-            ser,
-            "Scan this QR on your next use",
-            align="center",
-            delay=0.08,
-        )
+
+        if has_qr_token:
+            _print_wrapped_line(
+                ser,
+                "Scan this QR on your next use",
+                align="center",
+                delay=0.08,
+            )
+        else:
+            _print_wrapped_line(
+                ser,
+                "QR code not available",
+                align="center",
+                delay=0.08,
+            )
 
         _feed(ser, 1, 0.08)
 
-        print("[PRINTER] Printing QR-only coupon QR", flush=True)
-        _print_qr(
-            ser,
-            token,
-            module_size=QR_MODULE_SIZE,
-            ec_level=QR_EC_LEVEL,
-        )
+        if has_qr_token:
+            print("[PRINTER] Printing discount coupon QR", flush=True)
+            _print_qr(
+                ser,
+                token_text,
+                module_size=QR_MODULE_SIZE,
+                ec_level=QR_EC_LEVEL,
+            )
+        else:
+            print("[PRINTER] Printing placeholder QR message box", flush=True)
+            _print_boxed_message(
+                ser,
+                PLACEHOLDER_QR_MESSAGE,
+            )
 
-        print("[PRINTER] Printing QR-only coupon footer", flush=True)
+        print("[PRINTER] Printing discount coupon footer", flush=True)
 
-        _print_wrapped_line(
-            ser,
-            "This code is one-time use only",
-            align="left",
-            delay=0.08,
-        )
-        _print_wrapped_line(
-            ser,
-            "and will expire after 3 months.",
-            align="left",
-            delay=0.08,
-        )
-        _print_wrapped_line(
-            ser,
-            "Keep this paper for your next purchase.",
-            align="left",
-            delay=0.08,
-        )
+        if has_qr_token:
+            _print_wrapped_line(
+                ser,
+                "This code is one-time use only",
+                align="left",
+                delay=0.08,
+            )
+            _print_wrapped_line(
+                ser,
+                "and will expire after 3 months.",
+                align="left",
+                delay=0.08,
+            )
+            _print_wrapped_line(
+                ser,
+                "Keep this paper for your next purchase.",
+                align="left",
+                delay=0.08,
+            )
+        else:
+            _print_wrapped_line(
+                ser,
+                "No local discount QR was generated",
+                align="left",
+                delay=0.08,
+            )
+            _print_wrapped_line(
+                ser,
+                "for this printed coupon.",
+                align="left",
+                delay=0.08,
+            )
+            _print_wrapped_line(
+                ser,
+                "Open the website to request",
+                align="left",
+                delay=0.08,
+            )
+            _print_wrapped_line(
+                ser,
+                "a discount QR code.",
+                align="left",
+                delay=0.08,
+            )
 
         _feed(ser, 1, 0.08)
 
@@ -624,7 +656,11 @@ def print_discount_qr(token: str, com_port=None, baud=DEFAULT_BAUD):
 
         _finalize_print(ser)
 
-        print("[PRINTER] QR-only coupon printed successfully", flush=True)
+        if has_qr_token:
+            print("[PRINTER] Discount coupon with QR printed successfully", flush=True)
+        else:
+            print("[PRINTER] Discount coupon placeholder printed successfully", flush=True)
+
         return True
 
     except Exception as e:
@@ -656,3 +692,7 @@ def debug_list_serial_devices():
 def debug_print_test_coupon():
     token = generate_token("DEBUG")
     return print_discount_qr(token)
+
+
+def debug_print_placeholder_coupon():
+    return print_discount_qr(None)

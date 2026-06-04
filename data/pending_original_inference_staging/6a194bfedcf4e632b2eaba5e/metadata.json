@@ -1,0 +1,204 @@
+{
+  "recovered_pending_inference": true,
+  "recovered_at": "2026-06-02T03:48:28.198474+00:00",
+  "transaction_id": "6a194bfedcf4e632b2eaba5e",
+  "user_id": "69b791783385f884c12193b6",
+  "product_id": "DENGUE123",
+  "product_name": "Dengue Confidex Kit",
+  "source_original": "/home/code200/Confidex_GUI/captures/69b791783385f884c12193b6/20260529_161726/original.png",
+  "result": "Negative",
+  "original_result": "Negative",
+  "review_status": "none",
+  "review_required": false,
+  "annotation_policy": "yolo_class_labels_only",
+  "analysis": {
+    "ok": true,
+    "reason": "VALID_NEGATIVE_COMBINATION_CONTAINED",
+    "model": "backend/ipModel/my_model.pt",
+    "result": "Negative",
+    "detections_count": 3,
+    "detections": [
+      {
+        "label": "CV",
+        "label_normalized": "CV",
+        "class_key": "CV",
+        "class_id": 4,
+        "confidence": 0.8073544502258301,
+        "box_xyxy": [
+          285.55,
+          354.02,
+          310.29,
+          447.97
+        ]
+      },
+      {
+        "label": "MN",
+        "label_normalized": "MN",
+        "class_key": "MN",
+        "class_id": 7,
+        "confidence": 0.7494376301765442,
+        "box_xyxy": [
+          310.21,
+          353.99,
+          330.06,
+          448.31
+        ]
+      },
+      {
+        "label": "GN",
+        "label_normalized": "GN",
+        "class_key": "GN",
+        "class_id": 5,
+        "confidence": 0.8295547962188721,
+        "box_xyxy": [
+          331.78,
+          354.35,
+          353.94,
+          448.1
+        ]
+      }
+    ],
+    "all_detections_count": 3,
+    "all_detections": [
+      {
+        "label": "GN",
+        "label_normalized": "GN",
+        "class_key": "GN",
+        "class_id": 5,
+        "confidence": 0.8295547962188721,
+        "box_xyxy": [
+          331.78,
+          354.35,
+          353.94,
+          448.1
+        ]
+      },
+      {
+        "label": "CV",
+        "label_normalized": "CV",
+        "class_key": "CV",
+        "class_id": 4,
+        "confidence": 0.8073544502258301,
+        "box_xyxy": [
+          285.55,
+          354.02,
+          310.29,
+          447.97
+        ]
+      },
+      {
+        "label": "MN",
+        "label_normalized": "MN",
+        "class_key": "MN",
+        "class_id": 7,
+        "confidence": 0.7494376301765442,
+        "box_xyxy": [
+          310.21,
+          353.99,
+          330.06,
+          448.31
+        ]
+      }
+    ],
+    "active_filter": {
+      "family": "dengue",
+      "allowed_family_classes": [
+        "CV",
+        "GN",
+        "GP",
+        "MN",
+        "MP"
+      ],
+      "family_conf_threshold": 0.25,
+      "active_kit_policy": "bottom",
+      "clusters": [
+        {
+          "index": 0,
+          "median_y": 401.15,
+          "count": 3,
+          "classes": [
+            "CV",
+            "GN",
+            "MN"
+          ],
+          "selected": true
+        }
+      ],
+      "selected_cluster": {
+        "median_y": 401.15,
+        "count": 3,
+        "classes": [
+          "CV",
+          "GN",
+          "MN"
+        ]
+      },
+      "ignored_detections": [],
+      "filter_reason": "ACTIVE_KIT_FILTER_APPLIED"
+    },
+    "detected_classes": [
+      "CV",
+      "GN",
+      "MN"
+    ],
+    "relevant_detected_classes": [
+      "CV",
+      "GN",
+      "MN"
+    ],
+    "matched_rule": "CV+GN+MN",
+    "invalid_reason": "",
+    "conf_threshold": 0.25,
+    "predict_conf_threshold": 0.25,
+    "global_conf_threshold": 0.25,
+    "expected_family": "dengue",
+    "imgsz": 640,
+    "device": "cpu",
+    "product_id": "DENGUE123",
+    "product_name": "Dengue Confidex Kit"
+  },
+  "detections": [
+    {
+      "label": "CV",
+      "label_normalized": "CV",
+      "class_key": "CV",
+      "class_id": 4,
+      "confidence": 0.8073544502258301,
+      "box_xyxy": [
+        285.55,
+        354.02,
+        310.29,
+        447.97
+      ]
+    },
+    {
+      "label": "MN",
+      "label_normalized": "MN",
+      "class_key": "MN",
+      "class_id": 7,
+      "confidence": 0.7494376301765442,
+      "box_xyxy": [
+        310.21,
+        353.99,
+        330.06,
+        448.31
+      ]
+    },
+    {
+      "label": "GN",
+      "label_normalized": "GN",
+      "class_key": "GN",
+      "class_id": 5,
+      "confidence": 0.8295547962188721,
+      "box_xyxy": [
+        331.78,
+        354.35,
+        353.94,
+        448.1
+      ]
+    }
+  ],
+  "recovery_image_policy": "original_keyword_only_no_raw",
+  "recovery_range_start": "2026-05-01T00:00:00+00:00",
+  "recovery_range_end": "2026-07-01T00:00:00+00:00"
+}

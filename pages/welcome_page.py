@@ -37,6 +37,7 @@ class WelcomePage(ctk.CTkFrame):
         self._redraw_after_id = None
         self._config_snapshot = {}
         self._system_notice = None
+        self._login_navigation_in_progress = False
 
         self.canvas.bind("<Button-1>", self.go_to_login)
         self.canvas.bind("<Configure>", self._schedule_redraw)
@@ -916,4 +917,22 @@ class WelcomePage(ctk.CTkFrame):
         )
 
     def go_to_login(self, event=None):
-        self.controller.show_frame("QRLoginPage")
+        if self._login_navigation_in_progress:
+            return
+
+        self._login_navigation_in_progress = True
+
+        try:
+            self.controller.show_frame("QRLoginPage")
+
+            qr_page = getattr(self.controller, "frames", {}).get("QRLoginPage")
+            if qr_page and hasattr(qr_page, "reset_fields"):
+                qr_page.reset_fields(start_active=True)
+
+        finally:
+            # Prevent accidental double taps from creating multiple listener/timer
+            # starts, then allow another login attempt after a short debounce.
+            try:
+                self.after(800, lambda: setattr(self, "_login_navigation_in_progress", False))
+            except Exception:
+                self._login_navigation_in_progress = False

@@ -10,6 +10,11 @@ from backend.util.dispenser_serial import (
 )
 from config_manager import config
 from backend.device_sync import mark_inventory_dirty, push_inventory_if_dirty
+from backend.dispense_ledger import (
+    begin_dispense_attempt,
+    mark_dispense_confirmed,
+    mark_dispense_failed,
+)
 
 
 # ---------------------------------------------------------------------
@@ -1006,10 +1011,9 @@ class DispensingPage(ctk.CTkFrame):
 
     def _decrement_stock_after_confirmed_dispense(self, product_id):
         """
-        Decrements local stock after Arduino confirms DISPENSED.
-
-        Returns:
-          stock_after or None
+        Decrement local inventory only after Arduino confirms DISPENSED.
+        Always read the final stock from inventory.json instead of assuming
+        decrement_product_stock() returns the updated product object.
         """
         if not product_id:
             return None
@@ -1018,7 +1022,10 @@ class DispensingPage(ctk.CTkFrame):
             updated = config.decrement_product_stock(str(product_id), 1)
 
             if updated:
-                stock_after = self._stock_after_decrement(updated, product_id)
+                try:
+                    stock_after = int(config.get_product_stock(str(product_id)))
+                except Exception:
+                    stock_after = None
 
                 if stock_after is not None and isinstance(self.product, dict):
                     self.product["stock"] = stock_after
@@ -1028,28 +1035,38 @@ class DispensingPage(ctk.CTkFrame):
                 threading.Thread(target=push_inventory_if_dirty, daemon=True).start()
 
                 print(
-                    f"[DISPENSING] Stock decremented product_id={product_id} "
-                    f"stock_after={stock_after}",
+                    f"[DISPENSING] Stock decremented product_id={product_id} stock_after={stock_after}",
                     flush=True,
                 )
-
                 return stock_after
 
-            print(
-                f"[DISPENSING] Stock not decremented for product_id={product_id}",
-                flush=True,
-            )
+            print(f"[DISPENSING] Stock not decremented for product_id={product_id}", flush=True)
 
         except Exception as e:
             print(f"[DISPENSING] Failed to decrement stock: {e}", flush=True)
 
         return None
-
     def _dispense_item_thread(self):
-        try:
-            product_id = self._get_product_id()
-            product_name = self._get_product_name()
+        transaction_id = str(
+            self.transaction_id
+            or self.user_data.get("transaction_id")
+            or self.user_data.get("latest_transaction_id")
+            or ""
+        ).strip()
+        product_id = self._get_product_id()
+        product_name = self._get_product_name()
 
+        allowed, existing = begin_dispense_attempt(
+            transaction_id=transaction_id,
+            product_id=product_id,
+            product_name=product_name,
+        )
+
+        if not allowed:
+            self.after(0, lambda record=existing: self._handle_already_dispensed(record))
+            return
+
+        try:
             return_home_after = self._should_return_home_after_dispense(product_id)
 
             result = send_dispense_command(
@@ -1058,10 +1075,48 @@ class DispensingPage(ctk.CTkFrame):
                 return_home_after=return_home_after,
             )
 
+            if self._dispense_was_confirmed(result):
+                mark_dispense_confirmed(
+                    transaction_id,
+                    result=result,
+                    message="Arduino confirmed DISPENSED.",
+                )
+            else:
+                mark_dispense_failed(
+                    transaction_id,
+                    result=result,
+                    message=str(result.get("message") if isinstance(result, dict) else result),
+                )
+
             self.after(0, lambda: self._on_dispense_done(result))
 
         except Exception as e:
+            mark_dispense_failed(transaction_id, result={"error": str(e)}, message=str(e))
             self.after(0, lambda: self._on_dispense_error(str(e)))
+    def _handle_already_dispensed(self, existing_record=None):
+        self.processing = False
+        self.stop_animation()
+
+        tx = str(self.transaction_id or "").strip()
+        self._set_state("Completed", SUCCESS)
+        self.message_label.configure(
+            text="Item already released",
+            text_color=SUCCESS,
+        )
+        self.short_note_label.configure(text="")
+        self.status_label.configure(text="")
+        self.dispenser_note_label.configure(
+            text="This paid transaction was already dispensed. Continuing to instructions.",
+            text_color=MUTED,
+        )
+        self.info_badge_label.configure(text="PROTECTED")
+        self.info_title.configure(text="Duplicate dispense blocked")
+        self.center_title.configure(text="Continuing")
+        self.center_note.configure(text="The booth will continue without repeating the motor action.")
+        self.bottom_label.configure(text="")
+
+        print(f"[DISPENSING] Duplicate dispense blocked for transaction_id={tx}", flush=True)
+        self._show_success_and_continue()
 
     def _show_success_and_continue(self, return_home_warning=None):
         if return_home_warning:

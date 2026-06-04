@@ -1,0 +1,33 @@
+{
+  "local_transaction_id": "LOCAL-CASH-20260530120548-F7AA696F",
+  "transaction_id": "LOCAL-CASH-20260530120548-F7AA696F",
+  "created_at": "2026-05-30T12:05:48.458815+00:00",
+  "status": "synced",
+  "payment_method": "cash",
+  "cash": 50,
+  "total_paid": 50,
+  "change": 49.0,
+  "total": 1.0,
+  "sync_error": "Network/API error: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+  "transaction_data": {
+    "user_id": "69d0e493f83e9d61b202d62d",
+    "status": "completed",
+    "items": [
+      {
+        "name": "HIV Confidex Kit",
+        "productID": "HIV123",
+        "type": "HIV Test",
+        "price": 1.0,
+        "discount": 0.0,
+        "finalPrice": 1.0,
+        "result": "Pending"
+      }
+    ],
+    "purchasedDate": null
+  },
+  "synced_at": "2026-05-30T12:05:49.526806+00:00",
+  "website_transaction_id": "6a1ad29d9c48419d7b8dafc9",
+  "last_sync_error": "",
+  "last_response_status": 200,
+  "last_response_text": "{\"success\":true,\"transaction\":{\"user_id\":\"69d0e493f83e9d61b202d62d\",\"status\":\"completed\",\"items\":[{\"name\":\"HIV Confidex Kit\",\"productID\":\"HIV123\",\"type\":\"HIV Test\",\"price\":1,\"discount\":0,\"finalPrice\":1,\"result\":\"Pending\",\"_id\":\"6a1ad29d9c48419d7b8dafca\"}],\"purchasedDate\":\"2026-05-30T12:05:48.458Z\",\"payment_method\":\"\",\"payment_session_id\":\"\",\"payment_reference\":\"\",\"payment_status\":\"\",\"_id\":\"6a1ad29d9c48419d7b8dafc9\",\"createdAt\":\"2026-05-30T12:05:49.049Z\",\"updatedAt\":\"2026-05-30T12:05:49.049Z\",\"__v\":0}}"
+}
