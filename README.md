@@ -174,3 +174,7 @@ When the booth is online, it synchronizes transactions, receipts, inventory, and
 ## Notes
 
 CONFIDEX is a capstone prototype intended to support anonymous preliminary health screening. Results produced by the system should be treated as screening outputs only and should still be followed by proper medical consultation, confirmatory testing, and professional guidance.
+
+![CONFIDEX Booth](assets/booth.jpg)
+![CONFIDEX Booth](assets/booth2.jpg)
+![CONFIDEX Booth](assets/booth3.jpg)
